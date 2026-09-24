@@ -486,7 +486,7 @@ TIM_DC_S
 .y      = qrTmpVars+2
   IF QR_DIRECT_DRAW
 .iByte  = qrTmpVars+3       ; ZP-RAM!
-.iBit   = qrTmpVars+4
+.iBit   = qrTmpVars+4       ; ZP-RAM!
 .right1 = qrTmpVars+5
   ELSE ;{
 ; must not overlap with DrawPattern space
@@ -497,7 +497,7 @@ TIM_DC_S
 
 ; blacken the (right) function modules in the bitmap
   IF QR_OVERLAP
-    _CLEAR_RIGHT        ; returns with X = 0
+    _CLEAR_RIGHT        ; returns with X = -1
   ELSE ;{
    IF QR_DIRECT_DRAW
     _BLACK_FUNC         ; returns with X = 0
@@ -507,9 +507,8 @@ TIM_DC_S
    ENDIF
   ENDIF ;}
 ; int i = 0;  // Bit index into the data
-;    ldx     #0
 ; 2600 code has data in reversed order
-    stx     .iBit
+    stx     .iBit           ; X = $ff
     lda     #QR_TOTAL-1
     sta     .iByte
 ; // Do the funny zigzag scan
@@ -572,22 +571,17 @@ TIM_DC_S
     bcs     .skipPixel
 ;         bool black = getBit(qrData[i >> 3], 7 - (i & 7));
     ldx     .iByte
-    lda     qrData,x
-    ldx     .iBit
-    and     QR_BitMask,x
-    beq     .skipInv
+    asl     qrData,x
+    bcc     .skipInv
 ;         setModule(qrcode, x, y, black);
 ;    ldy     .x
     ldx     .y
     jsr     QR_InvertPixel
-    ldx     .iBit
 .skipInv
 ;         i++;
-    inx
-    txa
-    and     #$07
-    sta     .iBit
+    lsr     .iBit
     bne     .skipByte
+    dec     .iBit
     dec     .iByte          ; ZP-RAM!
     bmi     .exitDraw       ; 2600 code exits here!
 .skipByte
@@ -1521,13 +1515,12 @@ QR_URL_LEN = 16
   MAC _CLEAR_RIGHT
 ;-----------------------------------------------------------
 ; Clears right sprite column
-    ldx     #QR_SIZE
+    ldx     #QR_SIZE-1
     lda     #0
 .loopClearRight
-    sta     grp0RLst-1,x
+    sta     grp0RLst,x
     dex
-    bne     .loopClearRight
-; X = 0!
+    bpl     .loopClearRight
   ENDM
 
   MAC QR_BITMAP_CODE
