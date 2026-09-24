@@ -11,7 +11,7 @@
 ;QR_LEVEL        = QR_LVL_L ; error correction level (default M)
 ; Enable this if your payload exceeds the maximum message size. This will weaken
 ; error correction but provide space for 4 extra chars.
-QR_SPRITE_GFX   = 1 ; (-53 bytes) display playfield(0) or sprite graphics(1)
+QR_SPRITE_GFX   = 1 ; (-38 bytes) display playfield(0) or sprite graphics(1)
 ; Sprite graphics are small, but sufficient. And allow to display your own
 ; graphics above and below.
 
@@ -126,13 +126,14 @@ DoQrCode1 SUBROUTINE
     sta     NUSIZ1
     sta     VDELP0
 
-  IF 0
+   IF 0
     lda     #$56
     sta     scoreLo
     lda     #$34
     sta     scoreMid
     lda     #$12
     sta     scoreHi
+   ENDIF
   ENDIF
 
 ; *** Generate QR code and resulting graphics from message ***

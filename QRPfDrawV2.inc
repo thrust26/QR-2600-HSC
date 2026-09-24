@@ -1,17 +1,19 @@
   MAC QR_DRAW_CODE
 QR_BLOCK_H  = 7
-.tmpFirst   = qrTmpVars     ; ZP-RAM!
+.tmpFirst   = qrTmpVars     ; leftmost pixel column (-> M1), ZP-RAM!
+.tmpFirst1  = qrTmpVars+1   ; ZP-RAM!
+.tmpFirst2  = qrTmpVars+2   ; ZP-RAM!
 
+_qrDrawCode
 ; |PF0 |  PF1   |  PF2   |  PF2   |  PF1   |PF0 |
 ; |....|...xxxxx|xxxxxxxx|xxxxxxxx|xxxx....|....|
 .pf0R1LLst  = grp0LLst
 .pf2LLst    = grp1Lst
 .pf1RLst    = grp0RLst
 
-    lda     #0
-    sta     CTRLPF
+    lda     #0              ; black QR code...
     sta     COLUPF
-    lda     #$0e
+    lda     #$0e            ; ...on white background
     sta     COLUBK
 
 ; some vertical centering
@@ -21,38 +23,35 @@ QR_BLOCK_H  = 7
     sta     WSYNC
 ;---------------------------------------
     bne     .waitTop
+    stx     CTRLPF
 
+    lda     #%01111111      ;           = $7f
+    sta     .tmpFirst
+    lda     firstMsl
+   IF QR_LEVEL = 0 || QR_LEVEL = 1
+    sec                     ;           top eye, 1st format bit is 1
+    rol
+   ELSE
+    asl                     ;           top eye, 1st format bit is 0
+   ENDIF
+    sta     .tmpFirst1
+    lda     #%01111110      ;           = $7e
+    rol                     ;           = %1111110x
+    sta     .tmpFirst2
+; QR code display kernel:
     ldx     #QR_SIZE-1
-    lda     #%1             ;           1st top left fixed pixel
-    bne     .enterLoop
+    bne     .loopQrKernel
 
+; QR code display kernel:
 .loopBlock
     SLEEP   2
     lda     #0              ; 2
     sta     PF2             ; 3         @43/44
-    sta     PF0             ; 3 =  8    @46/47
-    beq     .contBlock      ; 3
-
-; the QR code kernel
-LoopKernel                  ;           @47/48
-    lda     QrFirstIdxTbl,x ; 4
-    sty     PF0             ; 3
-    sty     PF2             ; 3
-    cmp     #1              ; 2
-    bcs     .newFirst       ; 2/3
-    lsr     .tmpFirst       ; 5         ZP-RAM!
-    bpl     .endFirst       ; 3 = 22    unconditional
-
-.newFirst                   ;           @62/63
-; $bf/$3f | $01 | $fe
-    bne     .enterLoop      ; 2/3
-    lda     firstMsl        ; 3
-.enterLoop
-    sta     .tmpFirst       ; 3 =  8
-.endFirst                   ;           @69..71
+    sta     PF0             ; 3         @46/47
+    NOP_W                   ; 2 = 10
+.loopQrKernel               ;           @68/69
     ldy     #QR_BLOCK_H     ; 2
-.contBlock
-    sta     WSYNC           ; 3
+    sta     WSYNC           ; 3 =  5
 ;---------------------------------------
 ; |PF0 |  PF1   |  PF2   |PF0 |  PF1   |  PF2   |
 ; |    |7......0|0......7|4..7|7......0|        |
@@ -62,7 +61,7 @@ LoopKernel                  ;           @47/48
     lda     .pf0R1LLst,x    ; 4
     and     #%1111          ; 2
     bcc     .clear          ; 2/3
-    ora     #%10000         ; 2
+    ora     #%10000         ; 2         CF needed for 1st ror
 .clear                      ;   = 14/15
     sta     PF1             ; 3         @17/18
     lda     .pf2LLst,x      ; 4
@@ -72,16 +71,15 @@ LoopKernel                  ;           @47/48
     lda     .pf1RLst,x      ; 4
     sta     PF1             ; 3 = 14    @38/39  >=38
     dey                     ; 2
-    bne     .loopBlock      ; 3/2
+    bne     .loopBlock      ; 3/2= 5/4  @43/44
+    ror     .tmpFirst2      ; 5         shift bits into .tmpFirst
+    ror     .tmpFirst1      ; 5
+    ror     .tmpFirst       ; 5
+    sty     PF2             ; 3
+    sty     PF0             ; 3 = 21    @63/64
     dex                     ; 2
-    bpl     LoopKernel      ; 3/2=9/8   @47/48
-    CHECKPAGE LoopKernel
-    SLEEP   2               ; 2
-    sty     PF2             ; 3         @51/52
-    sty     PF0             ; 3         @54/55
-    sta     WSYNC           ; 3
-;---------------------------------------
-    sty     PF1
+    bpl     .loopQrKernel   ; 3/2= 5/4  @68/69
+    sty     PF1             ;           @71
 
     ldx     #{2}
 .waitBtm
@@ -89,8 +87,9 @@ LoopKernel                  ;           @47/48
     sta     WSYNC
 ;---------------------------------------
     bne     .waitBtm
+    ECHO    "    QR Code PF kernel:", [. - _qrDrawCode]d, "bytes"
+_QR_TOTAL SET _QR_TOTAL + . - _qrDrawCode
   ENDM ; /QR_DRAW_CODE
-
 
   MAC _QR_ARRANGE_DRAW_DATA
 TIM_AS_S
@@ -150,22 +149,10 @@ TIM_AS_E
   ENDM
 
   MAC QR_DRAW_DATA
-QrFirstIdxTbl ; for 25 pixel
-    ds 7, 0
-    .byte   $fe
-    ds 7, 0
-    .byte   $01
-    ds 7, 0
-   IF QR_LEVEL = 0 || QR_LEVEL = 1
-    .byte   $bf     ; 1st format bit is 1
-   ELSE
-    .byte   $3f     ; 1st format bit is 0
-   ENDIF
-    CHECKPAGE QrFirstIdxTbl ; make sure this table does not cross a page!
+_qrFuncData
+    include QRFuncDataV2S0.inc ; special pattern
 
-    include QRFuncDataV2S.inc ; special pattern
-
-    ECHO    "QR Code function modules data:", [. - QrFirstIdxTbl]d, "bytes"
-_QR_TOTAL SET _QR_TOTAL + . - QrFirstIdxTbl
+    ECHO    "QR Code function modules data:", [. - _qrFuncData]d, "bytes"
+_QR_TOTAL SET _QR_TOTAL + . - _qrFuncData
   ENDM
 
