@@ -22,7 +22,7 @@ QR_SPRITE_GFX   = 1 ; (-38 bytes) display playfield(0) or sprite graphics(1)
 ; Q R   M A C R O S
 ;===============================================================================
 
-  include QRCodeGen2600.inc ; contains all QR code generation code
+  include QRCodeGen2600.asm ; contains all QR code generation code
 
 
 ;===============================================================================
