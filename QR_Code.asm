@@ -223,10 +223,5 @@ ExitQrCode
     ECHO    "---------------------------------------------------"
     ECHO    "    QR Code total:", [_QR_TOTAL]d, "bytes ROM,", [_QR_RAM]d, "bytes RAM"
     ECHO    ""
-  IF QR_MODE = QR_BYTE
-    ECHO    "    QR Code Version", [QR_VERSION]d, ", Level", [QR_LEVEL]d, ", Degree", [QR_DEGREE]d, ", Mode", [QR_MODE]d, "(Byte) -> Capacity", [QR_CAPACITY_BITS]d, "bits"
-  ENDIF ;}
-  IF QR_MODE = QR_ALPHA
     ECHO    "    QR Code Version", [QR_VERSION]d, ", Level", [QR_LEVEL]d, ", Degree", [QR_DEGREE]d, ", Mode", [QR_MODE]d, "(Alphanumeric) -> Capacity", [QR_CAPACITY_BITS]d, "bits"
-  ENDIF ;}
     ECHO    "      -> Message Space", [QR_MAX_MSG]d, "chars (", [QR_MSG_LEN]d, "used )"

@@ -3,3 +3,4 @@
 *.sym
 Bot*.asm
 dasm*.*
+/Font_Level_Up.inc
