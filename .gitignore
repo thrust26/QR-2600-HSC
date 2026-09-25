@@ -6,3 +6,4 @@ dasm*.*
 /Font_Level_Up.inc
 /jtz_macros.asm
 /i2c_v2.3.inc
+_old/*.*
