@@ -250,7 +250,7 @@ TIM_DF_S
     bcs     .skipOra
     lda     #$00            ; clear top, left "eye" (used for overlapping)
 .skipOra
-    eor     QrFuncGfx,x     ; apply function, alignment, timing and mask pattern
+    eor     _QrFuncData,x   ; apply function, alignment, timing and mask pattern
     sta     qrCodeLst,x
     dex
     bpl     .loopEor
@@ -1049,7 +1049,8 @@ _QR_MASK_IDX SET _QR_MASK_IDX ^ 1
 ;---------------------------------------------------------------
 _QR_MASK_IDX SET 0
 
-QrFuncGfx
+_QrFuncData
+; data for QR code version 2, level 0 or 1, mask 0
 ;GRP0LFunc
     _QR_AM  %00000000, %11111100 | (({1} >> 7) & %1) ; constant, bit 0 of 2nd format copy, level
     _QR_AM  %00000000, %00000100 | (({1} >> 6) & %1) ; constant, bit 1 of 2nd format copy, level
