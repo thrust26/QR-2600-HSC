@@ -70,7 +70,7 @@ _QR_TOTAL   SET 0
 
 
 ;===============================================================================
-; V A R I A B L E S
+; C H E C K S
 ;===============================================================================
 
 ; These two variables define start and end of the RAM area which can be used by
@@ -86,6 +86,18 @@ _QR_TOTAL   SET 0
   IFNCONST qrRamEnd
     ECHO    ""
     ECHO    "!!! ERROR: qrRamEnd not defined !!!"
+    ERR
+  ENDIF
+
+  IFNCONST QR_MSG_LEN
+    ECHO     ""
+    ECHO    "!!! ERROR: QR code message length not defined !!!"
+    ERR
+  ENDIF
+
+  IF QR_MAX_MSG < QR_MSG_LEN
+    ECHO     ""
+    ECHO    "!!! ERROR: QR code message length (", [QR_MSG_LEN]d, ") > maximum length (", [QR_MAX_MSG]d, ") !!!"
     ERR
   ENDIF
 
@@ -371,6 +383,8 @@ TIM_DC_E
 ;-----------------------------------------------------------
   MAC QR_START_MSG
 ;-----------------------------------------------------------
+TIM_MS_S
+
     ldx     #QR_MSG_INIT_LEN
 .loopInit
     lda     QrMsgInit-1,x
@@ -580,6 +594,10 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrAddMsgCode
 ; This is the main macro to use!
 _qrCodeCode
 
+    QR_STOP_MSG
+TIM_MS_E
+
+TIM_GN_S
 ; calculate the ECC
 RSRemainder
     _RS_REMAINDER
@@ -592,6 +610,7 @@ DrawFunc
     _DRAW_FUNC
 
     _QR_ARRANGE_DRAW_DATA    ; required only for PF display
+TIM_GN_E
 
     ECHO    "    QR Code encoding code:", [. - _qrCodeCode]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrCodeCode
