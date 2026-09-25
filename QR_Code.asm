@@ -141,7 +141,7 @@ TIM_MS_S
 _MessageCode
 ; initialize the QR code generation:
     lda     #QR_MSG_LEN
-    jsr     QrStartMsg
+    QR_START_MSG
 DEBUG0
 
 ; add the payload bytes (as defined for PlusCart HSC):
