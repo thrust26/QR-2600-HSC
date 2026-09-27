@@ -3,16 +3,25 @@
 
 ; This demo shows, how to use the QR code generation library for displaying
 ; high score QR codes. These can be scanned with your smartphone (most cameras
-; support them natively) and then send to the PlusROM High Score Club.
+; support them natively) and then send to the PlusCart High Score Club.
 ; This allows adding high scores without using a PlusCart or emulator.
 
 ; *** General Use ***
-; QR Code generation:
+; There are only a few DASM macros you have to use:
+;
+; for QR Code generation:
 ; - QR_START_MSG
-; - add payload (using QrAddMsg for each byte)
+; - add payload (using QrAddMsg subroutine for each byte)
 ; - QR_GEN_CODE
-; QR Code display:
+;
+; for QR Code display:
 ; - QR_DRAW_CODE {upper border} {lower boarder}
+;
+; Additional macros (put them where you want):
+; - QR_ADD_MSG_CODE
+; - QR_BITMAP_CODE
+; - QR_DRAW_DATA
+; - QR_CODE_DATA
 
 
     processor 6502
@@ -22,27 +31,32 @@
 
 BASE_ADR        = $f000
 
-NTSC_TIM        = 1
+NTSC_TIM        = 1         ; 0 for PAL-50
 
 ;PLUSROM_ID      = 255       ; fake ID
 PLUSROM_ID      = 57
 SCORE_BYTES     = 3         ; example number
-
-; define message payload size:
-QR_MSG_LEN = 1 + 3 + 1 + 1  ; PlusROM game ID, 3 x score, stage, variation
-; Note: An optional, short user id is planned, so that no further input
-; is quired on the website. The user id would be entered inside the game then.
-; There it could be stored and reused using e.g. the SaveKey.
 
 
 ;===============================================================================
 ; Q R   A S S E M B L E R - S W I T C H E S
 ;===============================================================================
 
+; define message payload size:
+QR_MSG_LEN      = 1 + 3 + 1 + 1; PlusROM game ID, 3 x score, stage, variation
+; Note: An optional, short user id is planned. This will be mapped to an
+; existing, long id. So that no further input is quired on the website.
+; The user id would be entered inside the game then. There it could be stored
+; and reused using e.g. the SaveKey.
+
+QR_BACK_COL     = $4e   ; white
+QR_FORE_COL     = $00   ; black
+; Note: other color combinations work too, as long as the contrast is high enough
+
 ;QR_LEVEL        = QR_LVL_L ; error correction level (default M)
 ; Enable this if your payload exceeds the maximum message size. This will weaken
 ; error correction but provide space for 4 extra chars.
-QR_SPRITE_GFX   = 1 ; (-38 bytes) display playfield(0) or sprite graphics(1)
+QR_SPRITE_GFX   = 0 ; (-38 bytes) display playfield(0) or sprite graphics(1)
 ; Sprite graphics are small, but sufficient. And allow to display your own
 ; graphics above and below.
 ; Note: Step away from the display if your QR code reader has problems.
@@ -65,7 +79,7 @@ stage       ds 1            ; game stage (level, wave...)
 variation   ds 1            ; game variation
 
 qrRamStart                  ; QR code generation needs a LOT of ZP-RAM, which starts here
-    ds      83              ; organize your RAM so that you have a large unused area
+    ds      100             ; organize your RAM so that you have a large unused area
                             ;  after the game ends,
                             ;  This is the most tricky part for you!
 qrRamEnd                    ; end of QR code RAM
@@ -93,30 +107,55 @@ resync      = tmpVars+1
 ;---------------------------------------------------------------
 Start SUBROUTINE
 ;---------------------------------------------------------------
-    lda     #0
-    tax
+;    lda     #0
+;    tax
     cld                     ; clear BCD math bit
-.clearLoop
-    dex
+;.clearLoop
+;    dex
+;    txs
+;    pha
+;    bne     .clearLoop
+
+    ldx     #$ff
     txs
-    pha
-    bne     .clearLoop
+    ldx     #$7f
+    lda     #0
+.loopClear
+    sta     $00,x
+    dex
+    bpl     .loopClear
+
+
+
 
  ; define demo "game results":
-    lda     #$56
+;    lda     #$14
+;    sta     variation
+;    lda     #$56
+;    sta     scoreLo
+;    lda     #$34
+;    sta     scoreMid
+;    lda     #$12
+;    sta     scoreHi
+;    lda     #$23
+;    sta     stage ;
+
+    lda     #$24
     sta     scoreLo
-    lda     #$34
+    lda     #$00
     sta     scoreMid
-    lda     #$12
+    lda     #$00
     sta     scoreHi
-    lda     #3
-    sta     stage
     lda     #1
+    sta     stage
+    lda     #0
     sta     variation
+
+
 
 .loop4Ever
     jsr     GenQrCode       ; QR code generation
-    jsr     DisplayQrCode   ; display generated QR code
+    jsr     DisplayQrCode   ; generated QR code display
     jmp     .loop4Ever      ; usually one would continue with the game here
 
 ;---------------------------------------------------------------
@@ -124,7 +163,7 @@ DisplayQrCode SUBROUTINE
 ;---------------------------------------------------------------
     lda     #2-1
     sta     fireButton      ; mark as pressed before, 2 state changes required
-    sta     resync          ; next 6 frames are displayed blank
+    sta     resync          ; next 6 frames are displayed blank for resync
 
 .mainLoop
     lda     #%00001110
@@ -135,10 +174,16 @@ DisplayQrCode SUBROUTINE
     lsr
     bne     .loopVSync
 ; VerticalBlank:
-  IF NTSC_TIM
-    lda     #44-4
+  IF QR_SPRITE_GFX
+_EXTRA_LINES    = 0
   ELSE
-    lda     #77-4
+_EXTRA_LINES    = 4     ; PF display needs some extra lines for a nice gap
+  ENDIF
+
+  IF NTSC_TIM
+    lda     #44-_EXTRA_LINES
+  ELSE
+    lda     #77-_EXTRA_LINES
   ENDIF
     sta     TIM64T
 
@@ -148,13 +193,14 @@ DisplayQrCode SUBROUTINE
     sta     WSYNC
 ;---------------------------------------
     asl     resync
-    bne     .blackScreen
+    bne     .blackScreen    ; no display during resync
     sta     VBLANK
 .blackScreen
 
 ; make sure there is a litte gap above and below the QR code!
   IF QR_SPRITE_GFX
-    QR_DRAW_CODE 72, 73     ; gaps above and below QR code
+    QR_DRAW_CODE 69, 70     ; gaps above and below QR code
+; Note: you can draw your own graphics above and below (or besides)
   ELSE
     QR_DRAW_CODE 11, 11     ; gaps above and below QR code
   ENDIF
@@ -164,9 +210,9 @@ DisplayQrCode SUBROUTINE
 
 ; OverScan:
   IF NTSC_TIM
-    lda     #36-4
+    lda     #36-_EXTRA_LINES
   ELSE
-    lda     #63-4
+    lda     #63-_EXTRA_LINES
   ENDIF
     sta     TIM64T
 
@@ -196,15 +242,15 @@ GenQrCode SUBROUTINE
 .msgPos     = tmpVars
 
 ; stop any audio (optional):
-    lda     #0
-    sta     AUDV0
-    sta     AUDV1
+;    lda     #0
+;    sta     AUDV0
+;    sta     AUDV1
 ; reset some TIA registers (optional):
   IF QR_SPRITE_GFX
-    sta     NUSIZ0
-    sta     NUSIZ1
-    sta     VDELP0
-;   ...
+;    sta     NUSIZ0
+;    sta     NUSIZ1
+;    sta     VDELP0
+;    ...
   ENDIF
 
 ; *** Generate QR code and resulting graphics from message ***
@@ -237,7 +283,12 @@ _qrMessageCode
     lda     stage
     jsr     QrAddMsg
 
-    ECHO    "    QR Code message code #1:", [. - _qrMessageCode]d, "bytes"
+    ;lda     #$6a
+    ;jsr     QrAddMsg
+;    lda     #$3F
+;    jsr     QrAddMsg
+
+    ECHO    "  QR Code message code #1:", [. - _qrMessageCode]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrMessageCode
 
 ; generate the QR code for the given message:
@@ -263,8 +314,8 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrMessageCode
 ; O U T P U T
 ;===============================================================================
 
-    ECHO    "---------------------------------------------------"
-    ECHO    "    QR Code total:", [_QR_TOTAL]d, "bytes ROM,", [_QR_RAM]d, "bytes RAM"
+    ECHO    "  --------------------------------------------"
+    ECHO    "  QR Code total:", [_QR_TOTAL]d, "bytes ROM,", [_QR_RAM]d, "bytes RAM"
     ECHO    ""
-    ECHO    "    QR Code Version", [QR_VERSION]d, ", Level", [QR_LEVEL]d, ", Degree", [QR_DEGREE]d, ", Mode", [QR_MODE]d, "(Alphanumeric) -> Capacity", [QR_CAPACITY_BITS]d, "bits"
-    ECHO    "      -> Message Space", [QR_MAX_MSG]d, "chars (", [QR_MSG_LEN]d, "used )"
+    ECHO    "  QR Code Version", [QR_VERSION]d, ", Level", [QR_LEVEL]d, ", Degree", [QR_DEGREE]d, ", Mode", [QR_MODE]d, "(Alphanumeric) -> Capacity", [QR_CAPACITY_BITS]d, "bits"
+    ECHO    "    -> Message Space", [QR_MAX_MSG]d, "chars (", [QR_MSG_LEN]d, "used )"
