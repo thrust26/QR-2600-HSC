@@ -15,8 +15,6 @@
 ;   o define exceptions which still need ZP-RAM for RMW operations
 ;   - define and apply read and write offsets
 
-REVERSE = 0
-
 
 ;===============================================================================
 ; U S E R - D E F I N E D   Q R   C O D E   C O N S T A N T S
@@ -117,9 +115,9 @@ _QR_TOTAL   SET 0
 ; memory layout:
 ;           1         2         3         4         5         6         7
 ; 01234567890123456789012345678901234567890123456789012345678901234567890123456789
-;                CCxxyyxxyy1042000093Q/ED.SULPAMRIF.H
 ; rrrrrrrrrrrrrrrrmmmmmmmmmmmmmmmmmmmmmmmmmmmmttttttttt
-;     QqqqqqqqqqqqqqqqqqqqqqqqqQQqqqqqqqqqqqqqqqqqqqqqqqqQqqqqqqqqqqqqqqqqqqtttttt
+;     QqqqqqqqqqqqqqqqqqqqqqqqqQQqqqqqqqqqqqqqqqqqqqqqqqqQqqqqqqqqqqqqqqqqqqqqqqqq
+;                                                                           tttttt
 
 ; Capacities:
 ; first column:   8 bits =  1     byte  (8 * 1)
@@ -135,19 +133,26 @@ _QR_TOTAL   SET 0
 
 ; input data (remainder and message):
 qrData      ds QR_TOTAL             ; 48 bytes
+qrRemainder = qrData                ; (QR_DEGREE = e.g. 16 bytes)
+qrMsgData   = qrData + QR_DEGREE    ; (QR_MAX_DATA = e.g. 28 bytes)
+; used during add message only:
+qrMsgTmpVars= qrData + QR_TOTAL
+qrInputIdx  = qrMsgTmpVars          ; ZP-RAM!
+qrMsgIdx    = qrMsgTmpVars + 1      ; ZP-RAM!
+qrNewByte   = qrMsgTmpVars + 2      ; ZP-RAM!
+qrMsgTmp    = qrMsgTmpVars + 3      ; 6 bytes
+qrCrc8      = qrMsgTmp+4
+qrUrlPos    = qrMsgTmp+5
+
+qrTmpVars   = grp0RLst + QR_SIZE - 6 ; overlaps with top right eye
 ;- - - - - - - - - - - - - - - - - - - -
 ; The QR draw data overlaps the QR code data! It overwrites the QR code data while being drawn.
 QR_NON_OVER = 4
-; generated QR code data, used for drawing:
-qrCodeLst   = qrData + QR_NON_OVER  ; all but 6/1 bytes overlap (version 2 only!)
-            ds NUM_FIRST + QR_SIZE*3 - QR_TOTAL + QR_NON_OVER   ; 28/34 bytes
-;---------------------------------------
+; generated QR code data, used for drawing (76 bytes needed):
+qrCodeLst   = qrData + QR_NON_OVER  ; all but 4 bytes overlap (version 2 only!)
+            ds NUM_FIRST + QR_SIZE*3 - QR_TOTAL + QR_NON_OVER   ; 32 bytes
 CODE_LST_SIZE   = . - qrCodeLst
 _QR_RAM         = . - qrRamStart
-
-qrTmpVars   = . - 6     ; overlaps with top right eye
-;---------------------------------------
-
 
   IF . > qrRamEnd
     ECHO    ""
@@ -161,24 +166,9 @@ grp0LLst    = qrCodeLst + QR_SIZE * 0
 firstMsl    = qrCodeLst + QR_SIZE * 1
 grp1Lst     = qrCodeLst + NUM_FIRST + QR_SIZE * 1
 grp0RLst    = qrCodeLst + NUM_FIRST + QR_SIZE * 2
-
-qrRemainder = qrData                ; (QR_DEGREE = e.g. 16 bytes)
-qrMsgData   = qrData + QR_DEGREE    ; (QR_MAX_DATA = e.g. 28 bytes)
-; used during add message only:
-
-;qrInputIdx  = qrTmpVars             ; ZP-RAM!
-;qrMsgIdx    = qrTmpVars + 1         ; ZP-RAM!
-;qrNewByte   = qrTmpVars + 2         ; ZP-RAM!
-;qrMsgTmp    = qrRemainder           ; 6 bytes
-;qrCrc8      = qrMsgTmp+4
-;qrUrlPos    = qrMsgTmp+5
-qrMsgTmpVars= qrData + QR_TOTAL
-qrInputIdx  = qrMsgTmpVars          ; ZP-RAM!
-qrMsgIdx    = qrMsgTmpVars + 1      ; ZP-RAM!
-qrNewByte   = qrMsgTmpVars + 2      ; ZP-RAM!
-qrMsgTmp    = qrMsgTmpVars + 3      ; 6 bytes
-qrCrc8      = qrMsgTmp+4
-qrUrlPos    = qrMsgTmp+5
+;- - - - - - - - - - - - - - - - - - - -
+; used during drawing only:
+qrDispVars  = qrData  ; 3 bytes (overlaps with qrRemainder)
 
 
 ;===============================================================================
@@ -279,42 +269,42 @@ TIM_RM_E
   ENDM ; /_RS_REMAINDER
 
 ; Atari 2600 data overlapping specific macros
-;-----------------------------------------------------------
-  MAC _CLEAR_LEFT
-;-----------------------------------------------------------
-; Clears left sprite column (except for bottom "eye"); also clears firstMsl!
-    ldx     #NUM_FIRST + QR_SIZE-1-8
-    lda     #0
-.loopClearLeft
-    sta     qrCodeLst+8,x       ; keep first 8 bytes, used for overlapping
-;    sta     grp0LLst+8,x
-    dex
-    bpl     .loopClearLeft
-  ENDM
-
-;-----------------------------------------------------------
-  MAC _CLEAR_MIDDLE
-;-----------------------------------------------------------
-; Clears middle sprite column
-    ldx     #QR_SIZE-1
-    lda     #0
-.loopClearMiddle
-    sta     grp1Lst,x
-    dex
-    bpl     .loopClearMiddle
-  ENDM
-
-;-----------------------------------------------------------
-  MAC _CLEAR_RIGHT
-;-----------------------------------------------------------
-; Clears right sprite column
-    ldx     #QR_SIZE-1
-    lda     #0
-.loopClearRight
-    sta     grp0RLst,x
-    dex
-    bpl     .loopClearRight
-  ENDM
+;;-----------------------------------------------------------
+;  MAC _CLEAR_LEFT
+;;-----------------------------------------------------------
+;; Clears left sprite column (except for bottom "eye"); also clears firstMsl!
+;    ldx     #NUM_FIRST + QR_SIZE-1-8
+;    lda     #0
+;.loopClearLeft
+;    sta     qrCodeLst+8,x       ; keep first 8 bytes, used for overlapping
+;;    sta     grp0LLst+8,x
+;    dex
+;    bpl     .loopClearLeft
+;  ENDM
+;
+;;-----------------------------------------------------------
+;  MAC _CLEAR_MIDDLE
+;;-----------------------------------------------------------
+;; Clears middle sprite column
+;    ldx     #QR_SIZE-1
+;    lda     #0
+;.loopClearMiddle
+;    sta     grp1Lst,x
+;    dex
+;    bpl     .loopClearMiddle
+;  ENDM
+;
+;;-----------------------------------------------------------
+;  MAC _CLEAR_RIGHT
+;;-----------------------------------------------------------
+;; Clears right sprite column
+;    ldx     #QR_SIZE-1
+;    lda     #0
+;.loopClearRight
+;    sta     grp0RLst,x
+;    dex
+;    bpl     .loopClearRight
+;  ENDM
 
 ;-----------------------------------------------------------
 ; Draws the raw codewords (including data and ECC) onto the given QR Code. This requires the initial state of
@@ -351,11 +341,11 @@ TIM_DC_S
 .not6
     sty     .right1
 ;; overwrite shared data
-    cpy     #8*2+1
-    bne     .skipBlackMiddle
-; blacken the middle function modules in the bitmap
-    _CLEAR_MIDDLE
-.skipBlackMiddle
+;    cpy     #8*2+1
+;    bne     .skipBlackMiddle
+;; blacken the middle function modules in the bitmap
+;    _CLEAR_MIDDLE
+;.skipBlackMiddle
 ;    cpy     #8+1
 ;    bne     .skipBlackLeft
 ;; blacken the left function modules in the bitmap
@@ -368,11 +358,7 @@ TIM_DC_S
 ;       bool upward = ((right + 1) & 2) != 0; // 2600 code works in reverse
     lda     .right1
     and     #$02        ; TODO: LSR, LSR; defines carry
-  IF !REVERSE
     bne     .notUp
-  ELSE
-    beq     .notUp     ; TODO: not in reverse
-  ENDIF
 ;       int y = upward ? qrsize - 1 - vert : vert;  // Actual y coordinate
     lda     #QR_SIZE-1;+1
     sec
@@ -411,7 +397,6 @@ TIM_DC_S
 ;         bool black = getBit(qrData[i >> 3], 7 - (i & 7));
     ldx     .iByte
     asl     qrData,x       ; this also partially clears the draw data
-;  sec
     bcc     .skipInv
 ;         setModule(qrcode, x, y, black);
 ;    ldy     .x
@@ -467,20 +452,11 @@ _QrCheckPixel SUBROUTINE
 ; check for timing pattern:
 ;    cpy     #6              ; X = 6?  (vertical timing) already checked in loop
 ;    beq     .full
-  IF !REVERSE
     cpx     #QR_SIZE-1-6    ; Y = 18? (horizontal timing)
-  ELSE
-    cpx     #6
-  ENDIF
     beq     .full
 ; check for top finders pattern:
-  IF !REVERSE
     cpx     #QR_SIZE-1-8    ; Y < 16?
     bcc     .notTopFinders
-  ELSE
-    cpx     #9
-    bcs     .notTopFinders
-  ENDIF
     cpy     #9              ; X < 9? (left top finder)
     bcc     .full
     cpy     #QR_SIZE-1-7    ; X >= 17? (right top finder)
@@ -488,13 +464,8 @@ _QrCheckPixel SUBROUTINE
 
 .notTopFinders
 ; check for bottom finder pattern:
-  IF !REVERSE
     cpx     #8              ; Y >= 8?
     bcs     .notBtmFinder
-  ELSE
-    cpx     #QR_SIZE-1-7    ; Y < 16?
-    bcc     .notBtmFinder
-  ENDIF
     cpy     #9              ; X < 9? (bottom finder)
     bcc     .full
 .notBtmFinder
@@ -503,15 +474,9 @@ _QrCheckPixel SUBROUTINE
     bcc     .empty
     cpy     #21             ; X < 21?
     bcs     .empty
-  IF !REVERSE
     cpx     #9              ; Y < 9?
     bcs     .empty
     cpx     #4              ; Y >= 4?
-  ELSE
-    cpx     #QR_SIZE-1-4              ; Y >= 4?
-    bcs     .empty
-    cpx     #QR_SIZE-1-9              ; Y < 9?
-  ENDIF
     rts
 
 .full
@@ -576,23 +541,12 @@ TIM_DF_S
     ldx     #CODE_LST_SIZE-1
 .loopEor
     lda     qrCodeLst,x
-  IF !REVERSE
 ; clear horizontal timing byte
     cpx     #NUM_FIRST + QR_SIZE*2-1-6
     beq     .clearByte
 ; clear top right eye
     cpx     #NUM_FIRST + QR_SIZE*3-1-8
     bcc     .skipOra
-  ELSE
-; clear horizontal timing byte
-    cpx     #NUM_FIRST + QR_SIZE*1+6
-    beq     .clearByte
-; clear top right eye
-    cpx     #NUM_FIRST + QR_SIZE*2
-    bcc     .skipOra
-    cpx     #NUM_FIRST + QR_SIZE*2+9
-    bcs     .skipOra
-  ENDIF
 .clearByte
     lda     #$00            ; clear top, right "eye" (no cleared by message data)
 .skipOra
@@ -708,7 +662,7 @@ _QrAddMsgDirect
 ; shifted out into the carry.
     bcc     .noAdd
 ;    clc
-    adc     .factor2
+    adc     .factor2    ; 45-1
 .noAdd
     ror
     ror     .prodLo     ; pull another bit out for the next iteration
@@ -888,9 +842,9 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrCodeData
   IF QR_SPRITE_GFX
 ; Display: M1, P0a, P1, P0b (25 pixel)
 QR_BLOCK_H  = 2     ; QR code pixel height
-.tmpFirst   = qrTmpVars     ; leftmost pixel column (-> M1), ZP-RAM!
-.tmpFirst1  = qrTmpVars+1   ; ZP-RAM!
-.tmpFirst2  = qrTmpVars+2   ; ZP-RAM!
+.tmpFirst   = qrDispVars    ; leftmost pixel column (-> M1), ZP-RAM!
+.tmpFirst1  = qrDispVars+1  ; ZP-RAM!
+.tmpFirst2  = qrDispVars+2  ; ZP-RAM!
 
 _qrDrawCode
     ldx     #QR_FORE_COL    ; black QR code...
@@ -935,13 +889,7 @@ _qrDrawCode
     sta     .tmpFirst2
 
 ; QR code display kernel:
-  IF !REVERSE
-_RV = 0
     ldx     #QR_SIZE-1
-  ELSE
-_RV = $80-QR_SIZE
-    ldx     #_RV
-  ENDIF
 .loopQrKernel               ;           @70*
     ldy     #QR_BLOCK_H     ; 2 = 2
 .loopBlock
@@ -951,27 +899,23 @@ _RV = $80-QR_SIZE
     lda     .tmpFirst       ; 3
     asl                     ; 2
     sta     ENAM1           ; 3 =  8
-    lda     grp1Lst-_RV,x       ; 4
+    lda     grp1Lst,x       ; 4
     sta     GRP1            ; 3
-    lda     grp0LLst-_RV,x      ; 4
+    lda     grp0LLst,x      ; 4
     sta     GRP0            ; 3 = 14
     php                     ; 3         waste 14 cycles
     plp                     ; 4
     php                     ; 3
     plp                     ; 4
     sec                     ; 2 = 16    needed for 1st ror (25th bit)
-    lda     grp0RLst-_RV,x      ; 4
+    lda     grp0RLst,x      ; 4
     dey                     ; 2
     sta.w   GRP0            ; 4 = 10    @48
     bne     .loopBlock      ; 2/3
     ror     .tmpFirst2      ; 5         shift bits into .tmpFirst
     ror     .tmpFirst1      ; 5
     ror     .tmpFirst       ; 5 = 15
-  IF !REVERSE
     dex                     ; 2
-  ELSE
-    inx                     ; 2
-  ENDIF
     bpl     .loopQrKernel   ; 3/2=7/6   @70/69*
     sty     ENAM1
     sty     GRP1
@@ -991,12 +935,9 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrDrawCode
   ELSE ; /QR_SPRITE_GFX
 
 QR_BLOCK_H  = 7
-;.tmpFirst   = qrTmpVars     ; leftmost pixel column (-> M1), ZP-RAM!
-;.tmpFirst1  = qrTmpVars+1   ; ZP-RAM!
-;.tmpFirst2  = qrTmpVars+2   ; ZP-RAM!
-.tmpFirst   = tmpVars+2   ; leftmost pixel column (-> M1), ZP-RAM!
-.tmpFirst1  = tmpVars+3   ; ZP-RAM!
-.tmpFirst2  = tmpVars+4   ; ZP-RAM!
+.tmpFirst   = qrDispVars    ; leftmost pixel column (-> M1), ZP-RAM!
+.tmpFirst1  = qrDispVars+1  ; ZP-RAM!
+.tmpFirst2  = qrDispVars+2  ; ZP-RAM!
 
 _qrDrawCode
 ; |PF0 |  PF1   |  PF2   |  PF2   |  PF1   |PF0 |
@@ -1029,15 +970,8 @@ _qrDrawCode
     rol                     ;           = %1111110x
     sta     .tmpFirst2
 ; QR code display kernel:
-  IF !REVERSE
-_RV = 0
     ldx     #QR_SIZE-1
     bne     .loopQrKernel
-  ELSE
-_RV = $80-QR_SIZE
-    ldx     #_RV
-    jmp     .loopQrKernel
-  ENDIF
 
 ; QR code display kernel:
 .loopBlock
@@ -1055,17 +989,17 @@ _RV = $80-QR_SIZE
 ; |....|...XXXXX|XXXXXXXX|XXXX|XXXXXXXX|........|
     lda     .tmpFirst       ; 3
     lsr                     ; 2
-    lda     .pf0R1LLst-_RV,x    ; 4
+    lda     .pf0R1LLst,x    ; 4
     and     #%1111          ; 2
     bcc     .clear          ; 2/3
     ora     #%10000         ; 2         CF needed for 1st ror
 .clear                      ;   = 14/15
     sta     PF1             ; 3         @17/18
-    lda     .pf2LLst-_RV,x      ; 4
+    lda     .pf2LLst,x      ; 4
     sta     PF2             ; 3 = 10    @24/25
-    lda     .pf0R1LLst-_RV,x    ; 4
+    lda     .pf0R1LLst,x    ; 4
     sta     PF0             ; 3         @31/32  >=27
-    lda     .pf1RLst-_RV,x      ; 4
+    lda     .pf1RLst,x      ; 4
     sta     PF1             ; 3 = 14    @38/39  >=38
     dey                     ; 2
     bne     .loopBlock      ; 3/2= 5/4  @43/44
@@ -1074,13 +1008,7 @@ _RV = $80-QR_SIZE
     ror     .tmpFirst       ; 5
     sty     PF2             ; 3
     sty     PF0             ; 3 = 21    @63/64
-
-  IF !REVERSE
     dex                     ; 2
-  ELSE
-    inx                     ; 2
-  ENDIF
-;    dex                     ; 2
     bpl     .loopQrKernel   ; 3/2= 5/4  @68/69
     sty     PF1             ;           @71
 
@@ -1108,14 +1036,11 @@ TIM_AS_S
 ;           |  P0L   |   P1   |  P0R   |
 ;          0|abcdefgh|ijklmnop|qrstuvwx| ->
 ;       -> 0|ponmabcd|lkjihgfe|qrstuvwx|
-;.tmpLeft    = qrTmpVars
-.tmpLeft    = tmpVars
 
     ldx     #QR_SIZE-1
 .loopRows
 ; rearrange grp0LLst & grp1Lst into pf0R1LLst
     lda     grp0LLst,x
-;    sta     .tmpLeft
     pha
     lda     grp1Lst,x
     ldy     #4
@@ -1124,7 +1049,6 @@ TIM_AS_S
     rol     grp0LLst,x
     dey
     bne     .loopShift01a
-;    lda     .tmpLeft
     pla
     pha
     ldy     #4
@@ -1145,7 +1069,6 @@ TIM_AS_S
     rol     grp1Lst,x
     dey
     bne     .loopShift2a
-;    lda     .tmpLeft
     pla
     ldy     #4
 .loopShift2b
@@ -1185,7 +1108,6 @@ _QR_MASK_IDX SET 0
 
 _QrFuncData
 ; data for QR code version 2, level 0 or 1, mask 0
-  IF !REVERSE ;{
 ;GRP0LFunc
     _QR_AM  %00000000, %11111100 | (({1} >> 7) & %1) ; constant, bit 0 of 2nd format copy, level
     _QR_AM  %00000000, %00000100 | (({1} >> 6) & %1) ; constant, bit 1 of 2nd format copy, level
@@ -1269,95 +1191,6 @@ _QR_MASK_IDX SET _QR_MASK_IDX ^ 1
     _QR_AM  %00000000, %01011101    ; 22    constant
     _QR_AM  %00000000, %01000001    ;       constant
     _QR_AM  %00000000, %01111111    ; 24    constant
-   ELSE ;}
-;GRP0LFunc
-    _QR_AM  %00000000, %11111100 | (({2} >> 1) & %1) ; constant, bit 14 of 1st format copy, ECC ; 24
-    _QR_AM  %00000000, %00000100 | (({2} >> 2) & %1) ; constant, bit 13 of 1st format copy, ECC
-    _QR_AM  %00000000, %01110100 | (({2} >> 3) & %1) ; constant, bit 12 of 1st format copy, ECC ; 22
-    _QR_AM  %00000000, %01110100 | (({2} >> 4) & %1) ; constant, bit 11 of 1st format copy, ECC
-    _QR_AM  %00000000, %01110100 | (({2} >> 5) & %1) ; constant, bit 10 of 1st format copy, ECC ; 20
-    _QR_AM  %00000000, %00000100 | (({2} >> 6) & %1) ; constant, bit  9 of 1st format copy, ECC
-    _QR_AM  %00000000, %11111101    ; 18               constant, 1 (timing bit)                                     ; 18
-    _QR_AM  %00000000, %00000000 | (({2} >> 7) & %1) ; constant, bit  8 of 1st format copy, ECC
-    _QR_AM  %00000000, (({1} << 1) & %11111000) | (({1} & %11) | %100) ; constant, bits 1..7 of 1st format copy, 1 (timing bit)
-    _QR_AM  %11111011, %00000000
-    _QR_AM  %11111011, %00000100    ; 14
-    _QR_AM  %11111011, %00000000
-    _QR_AM  %11111011, %00000100    ; 12
-    _QR_AM  %11111011, %00000000
-    _QR_AM  %11111011, %00000100    ; 10
-    _QR_AM  %11111011, %00000000
-    _QR_AM  %11111011, %00000100    ;  8
-    _QR_AM  %00000000, %00000001    ;                  constant, 1 (dark module)
-    _QR_AM  %00000000, %11111100 | (({1} >> 1) & %1) ; constant, bit 6 of 2nd format copy, ECC
-    _QR_AM  %00000000, %00000100 | (({1} >> 2) & %1) ; constant, bit 5 of 2nd format copy, ECC
-    _QR_AM  %00000000, %01110100 | (({1} >> 3) & %1) ; constant, bit 4 of 2nd format copy, pattern
-    _QR_AM  %00000000, %01110100 | (({1} >> 4) & %1) ; constant, bit 3 of 2nd format copy, pattern
-    _QR_AM  %00000000, %01110100 | (({1} >> 5) & %1) ; constant, bit 2 of 2nd format copy, pattern
-    _QR_AM  %00000000, %00000100 | (({1} >> 6) & %1) ; constant, bit 1 of 2nd format copy, level
-    _QR_AM  %00000000, %11111100 | (({1} >> 7) & %1) ; constant, bit 0 of 2nd format copy, level
-
-;FirstFunc
-;_QR_MASK_IDX SET _QR_MASK_IDX ^ 1
-    _QR_AM  %11111111, %00000000
-;_QR_MASK_IDX SET _QR_MASK_IDX ^ 1
-
-;GRP1Func
-    _QR_AM  %11111111, %00000000    ; 24
-    _QR_AM  %11111111, %00000000
-    _QR_AM  %11111111, %00000000    ; 22
-    _QR_AM  %11111111, %00000000
-    _QR_AM  %11111111, %00000000    ; 20
-    _QR_AM  %11111111, %00000000
-    _QR_AM  %00000000, %01010101    ; 18    horizontal timing pattern
-    _QR_AM  %11111111, %00000000
-    _QR_AM  %11111111, %00000000    ; 16
-    _QR_AM  %11111111, %00000000
-    _QR_AM  %11111111, %00000000    ; 14
-    _QR_AM  %11111111, %00000000
-    _QR_AM  %11111111, %00000000    ; 12
-    _QR_AM  %11111111, %00000000
-    _QR_AM  %11111111, %00000000    ; 10
-    _QR_AM  %11111111, %00000000
-    _QR_AM  %11111110, %00000001    ;  8
-    _QR_AM  %11111110, %00000001
-    _QR_AM  %11111110, %00000001    ;  6
-    _QR_AM  %11111110, %00000001
-    _QR_AM  %11111110, %00000001    ;  4    alignment pattern
-    _QR_AM  %11111111, %00000000
-    _QR_AM  %11111111, %00000000    ;  2
-    _QR_AM  %11111111, %00000000
-    _QR_AM  %11111111, %00000000    ;  0
-_QR_MASK_IDX SET _QR_MASK_IDX ^ 1
-
-;GRP0RFunc
-    _QR_AM  %00000000, %01111111    ; 24    constant
-    _QR_AM  %00000000, %01000001    ;       constant
-    _QR_AM  %00000000, %01011101    ; 22    constant
-    _QR_AM  %00000000, %01011101    ;       constant
-    _QR_AM  %00000000, %01011101    ; 20    constant
-    _QR_AM  %00000000, %01000001    ;       constant
-    _QR_AM  %00000000, %01111111    ; 18    constant
-    _QR_AM  %00000000, %00000000    ;       constant    top, right "eye"
-    _QR_AM  %00000000, (({1} << 7) & $80) | ({2} >> 1) ; bits 7..14 of 2nd format copy
-    _QR_AM  %11111111, %00000000
-    _QR_AM  %11111111, %00000000    ; 14
-    _QR_AM  %11111111, %00000000
-    _QR_AM  %11111111, %00000000    ; 12
-    _QR_AM  %11111111, %00000000
-    _QR_AM  %11111111, %00000000    ; 10
-    _QR_AM  %11111111, %00000000
-    _QR_AM  %00001111, %11110000    ;  8
-    _QR_AM  %00001111, %00010000
-    _QR_AM  %00001111, %01010000    ;  6
-    _QR_AM  %00001111, %00010000
-    _QR_AM  %00001111, %11110000    ;  4    alignment pattern
-    _QR_AM  %11111111, %00000000
-    _QR_AM  %11111111, %00000000    ;  2
-    _QR_AM  %11111111, %00000000
-    _QR_AM  %11111111, %00000000    ;  0
-
-   ENDIF ;}
   ENDM ; /_QR_FUNC_GFX
 
 ;---------------------------------------------------------------

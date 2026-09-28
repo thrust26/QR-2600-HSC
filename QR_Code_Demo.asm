@@ -56,7 +56,8 @@ QR_FORE_COL     = $80   ; black
 ;QR_LEVEL        = QR_LVL_L ; error correction level (default M)
 ; Enable this if your payload exceeds the maximum message size. This will weaken
 ; error correction but provide space for 4 extra chars.
-QR_SPRITE_GFX   = 0 ; (-38 bytes) display playfield(0) or sprite graphics(1)
+
+QR_SPRITE_GFX   = 0 ; (-36 bytes) display playfield(0) or sprite graphics(1)
 ; Sprite graphics are small, but sufficient. And allow to display your own
 ; graphics above and below.
 ; Note: Step away from the display if your QR code reader has problems.
@@ -288,7 +289,6 @@ _qrMessageCode
     jsr     QrAddMsg
     lda     #$58
     jsr     QrAddMsg
-
 
     ECHO    "  QR Code message code #1:", [. - _qrMessageCode]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrMessageCode
