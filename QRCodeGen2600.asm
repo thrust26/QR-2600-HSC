@@ -3,17 +3,18 @@
 ; specialized for creating URLs for the PlusCart HSC
 
 ; TODOs:
-; + BUG: message length fixed to 6 in init code!!!
-; + BUG: clear horizontal timing byte
-; + BUG: data overlapping in first
-; - reduce RAM
-;   - improve overlapping
-;   + clear data on demand
-
-;
 ; - support non-ZP RAM
 ;   o define exceptions which still need ZP-RAM for RMW operations
 ;   - define and apply read and write offsets
+;
+; DONEs:
+; + BUG: message length fixed to 6 in init code!!!
+; + BUG: clear horizontal timing byte
+; + BUG: data overlapping in first
+; + BUG: level low not working
+; + reduce RAM
+;   + improve overlapping
+;   + clear data on demand
 
 
 ;===============================================================================
@@ -147,7 +148,7 @@ qrUrlPos    = qrMsgTmp+5
 qrTmpVars   = grp0RLst + QR_SIZE - 6 ; overlaps with top right eye
 ;- - - - - - - - - - - - - - - - - - - -
 ; The QR draw data overlaps the QR code data! It overwrites the QR code data while being drawn.
-QR_NON_OVER = 4
+QR_NON_OVER = 4; + 8
 ; generated QR code data, used for drawing (76 bytes needed):
 qrCodeLst   = qrData + QR_NON_OVER  ; all but 4 bytes overlap (version 2 only!)
             ds NUM_FIRST + QR_SIZE*3 - QR_TOTAL + QR_NON_OVER   ; 32 bytes
@@ -566,19 +567,24 @@ TIM_MS_S
 ; mix mode (4 bits), length (9 bits) and first URL char (3 bits):
 _QR_TOTAL_MSG_LEN = (QR_MSG_LEN * 2) + QR_URL_LEN + 2
     lda     #(QR_MODE << 4) + (_QR_TOTAL_MSG_LEN >> 5)  ; 4/9 len bits
-    sta     qrMsgData + QR_DEGREE-1+QR_MSG_INIT_LEN+2
+    sta     qrData + QR_TOTAL - 1
     lda     #$03 + ((_QR_TOTAL_MSG_LEN & $1f) << 3)     ; 5/9 len bits
-    sta     qrMsgData + QR_DEGREE-1+QR_MSG_INIT_LEN+1
+    sta     qrData + QR_TOTAL - 2
 ; copy remaining intit data:
     ldx     #QR_MSG_INIT_LEN
 .loopInit
-    lda     QrMsgInit-1,x
-    sta     qrMsgData + QR_DEGREE-1,x
+    lda     QrMsgInit - 1,x
+    sta     qrData + QR_TOTAL - 3 - QR_MSG_INIT_LEN,x
     dex
     bne     .loopInit
     stx     qrCrc8
     stx     qrInputIdx      ; only even or odd needed
+   IF QR_LEVEL = QR_LVL_L
+    lda     #$15
+   ENDIF
+   IF QR_LEVEL = QR_LVL_M
     lda     #$0f
+   ENDIF
     sta     qrMsgIdx
     lda     #$29
     sta     qrNewByte
@@ -1198,10 +1204,10 @@ _QR_MASK_IDX SET _QR_MASK_IDX ^ 1
 ;---------------------------------------------------------------
 _qrFuncData ; for 25 pixel
 
-  IF QR_LEVEL = 0
+  IF QR_LEVEL = QR_LVL_L
     _QR_FUNC_GFX %11101111, %10001000
   ENDIF
-  IF QR_LEVEL = 1
+  IF QR_LEVEL = QR_LVL_M
     _QR_FUNC_GFX %10101000, %00100100
   ENDIF
 

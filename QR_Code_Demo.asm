@@ -43,7 +43,7 @@ SCORE_BYTES     = 3         ; example number
 ;===============================================================================
 
 ; define message payload size:
-QR_MSG_LEN      = 1 + 3 + 1 + 1+4; PlusROM game ID, 3 x score, stage, variation
+QR_MSG_LEN      = 1 + 3 + 1 + 1;+4;+4; PlusROM game ID, 3 x score, stage, variation
 ; Note: An optional, short user id is planned. This will be mapped to an
 ; existing, long id. So that no further input is quired on the website.
 ; The user id would be entered inside the game then. There it could be stored
@@ -281,6 +281,7 @@ _qrMessageCode
     lda     stage
     jsr     QrAddMsg
 
+; H.FIRMAPLUS.DE/Q3915F7AA24DE6A3F4158??
     lda     #$6a
     jsr     QrAddMsg
     lda     #$3F
@@ -289,6 +290,17 @@ _qrMessageCode
     jsr     QrAddMsg
     lda     #$58
     jsr     QrAddMsg
+
+;; H.FIRMAPLUS.DE/Q3915F7AA24DE6A3F4158FD6CE57FBE
+;    lda     #$FD
+;    jsr     QrAddMsg
+;    lda     #$6C
+;    jsr     QrAddMsg
+;    lda     #$E5
+;    jsr     QrAddMsg
+;    lda     #$7F
+;    jsr     QrAddMsg ;
+
 
     ECHO    "  QR Code message code #1:", [. - _qrMessageCode]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrMessageCode
@@ -320,4 +332,4 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrMessageCode
     ECHO    "  QR Code total:", [_QR_TOTAL]d, "bytes ROM,", [_QR_RAM]d, "bytes RAM"
     ECHO    ""
     ECHO    "  QR Code Version", [QR_VERSION]d, ", Level", [QR_LEVEL]d, ", Degree", [QR_DEGREE]d, ", Mode", [QR_MODE]d, "(Alphanumeric) -> Capacity", [QR_CAPACITY_BITS]d, "bits"
-    ECHO    "    -> Message Space", [QR_MAX_MSG]d, "chars (", [QR_MSG_LEN]d, "used )"
+    ECHO    "    -> Message Space", [QR_MAX_MSG]d, "bytes (", [QR_MSG_LEN]d, "used )"
