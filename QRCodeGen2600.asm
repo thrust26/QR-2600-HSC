@@ -3,6 +3,9 @@
 ; specialized for creating URLs for the PlusCart HSC
 
 ; TODOs:
+; + BUG: message length fixed to 6 in init code!!!
+; + BUG: clear horizontal timing byte
+; + BUG: data overlapping in first
 ; - reduce RAM
 ;   - improve overlapping
 ;   + clear data on demand
@@ -112,10 +115,11 @@ _QR_TOTAL   SET 0
     ORG     qrRamStart
 
 ; memory layout:
-;           1         2         3          4         5         6         7         8
-; 01234567890123456789012345678901234567 89012345678901234567890123456789012345678901234
-;       rrrrrrrrrrrrrrrrmmmmmmmmmmmmmmmm mmmmmmmmmmmmttttttttt
-; tttttt   QqqqqqqqqqqqqqqqqqqqqqqqqQQqq qqqqqqqqqqqqqqqqqqqqqqQqqqqqqqqqqqqqqqqqqqqqqqq
+;           1         2         3         4         5         6         7
+; 01234567890123456789012345678901234567890123456789012345678901234567890123456789
+;                CCxxyyxxyy1042000093Q/ED.SULPAMRIF.H
+; rrrrrrrrrrrrrrrrmmmmmmmmmmmmmmmmmmmmmmmmmmmmttttttttt
+;     QqqqqqqqqqqqqqqqqqqqqqqqqQQqqqqqqqqqqqqqqqqqqqqqqqqQqqqqqqqqqqqqqqqqqqtttttt
 
 ; Capacities:
 ; first column:   8 bits =  1     byte  (8 * 1)
@@ -123,26 +127,27 @@ _QR_TOTAL   SET 0
 ; middle block: 187 bits = 23.375 bytes (19 * 8 + 5 * 7)
 ; right block:  108 bits = 13.50  bytes (11 * 8 + 5 * 4)
 ; total:        359 bits = 44.875 bytes
+; critical: middle block overlapping, starting with ID
 
 ;---------------------------------------
 ; QR code variables
 ; all byte counts based on version 2, level M QR code
-  IF qrRamStart < $100
-qrTmpVars   ds 6
-  ELSE
-qrTmpVars   = qrRamStartZp          ; handle SC-RAM (TODO) (4 bytes needed)
-  ENDIF
-;---------------------------------------
+
 ; input data (remainder and message):
 qrData      ds QR_TOTAL             ; 48 bytes
 ;- - - - - - - - - - - - - - - - - - - -
 ; The QR draw data overlaps the QR code data! It overwrites the QR code data while being drawn.
-QR_NON_OVER = 8 ;1
+QR_NON_OVER = 4
 ; generated QR code data, used for drawing:
 qrCodeLst   = qrData + QR_NON_OVER  ; all but 6/1 bytes overlap (version 2 only!)
             ds NUM_FIRST + QR_SIZE*3 - QR_TOTAL + QR_NON_OVER   ; 28/34 bytes
+;---------------------------------------
 CODE_LST_SIZE   = . - qrCodeLst
 _QR_RAM         = . - qrRamStart
+
+qrTmpVars   = . - 6     ; overlaps with top right eye
+;---------------------------------------
+
 
   IF . > qrRamEnd
     ECHO    ""
@@ -346,11 +351,11 @@ TIM_DC_S
 .not6
     sty     .right1
 ;; overwrite shared data
-;    cpy     #8*2+1
-;    bne     .skipBlackMiddle
-;; blacken the middle function modules in the bitmap
-;    _CLEAR_MIDDLE
-;.skipBlackMiddle
+    cpy     #8*2+1
+    bne     .skipBlackMiddle
+; blacken the middle function modules in the bitmap
+    _CLEAR_MIDDLE
+.skipBlackMiddle
 ;    cpy     #8+1
 ;    bne     .skipBlackLeft
 ;; blacken the left function modules in the bitmap
@@ -362,7 +367,7 @@ TIM_DC_S
     sty     .vert
 ;       bool upward = ((right + 1) & 2) != 0; // 2600 code works in reverse
     lda     .right1
-    and     #$02
+    and     #$02        ; TODO: LSR, LSR; defines carry
   IF !REVERSE
     bne     .notUp
   ELSE
@@ -405,8 +410,8 @@ TIM_DC_S
 ;.skipClearLeft
 ;         bool black = getBit(qrData[i >> 3], 7 - (i & 7));
     ldx     .iByte
-;    asl     qrData,x       ; this also partially clears the draw data
-  sec
+    asl     qrData,x       ; this also partially clears the draw data
+;  sec
     bcc     .skipInv
 ;         setModule(qrcode, x, y, black);
 ;    ldy     .x
@@ -571,8 +576,24 @@ TIM_DF_S
     ldx     #CODE_LST_SIZE-1
 .loopEor
     lda     qrCodeLst,x
+  IF !REVERSE
+; clear horizontal timing byte
+    cpx     #NUM_FIRST + QR_SIZE*2-1-6
+    beq     .clearByte
+; clear top right eye
     cpx     #NUM_FIRST + QR_SIZE*3-1-8
     bcc     .skipOra
+  ELSE
+; clear horizontal timing byte
+    cpx     #NUM_FIRST + QR_SIZE*1+6
+    beq     .clearByte
+; clear top right eye
+    cpx     #NUM_FIRST + QR_SIZE*2
+    bcc     .skipOra
+    cpx     #NUM_FIRST + QR_SIZE*2+9
+    bcs     .skipOra
+  ENDIF
+.clearByte
     lda     #$00            ; clear top, right "eye" (no cleared by message data)
 .skipOra
     eor     _QrFuncData,x   ; apply function, alignment, timing and mask pattern
@@ -588,7 +609,13 @@ TIM_DF_E
   MAC QR_START_MSG
 ;-----------------------------------------------------------
 TIM_MS_S
-
+; mix mode (4 bits), length (9 bits) and first URL char (3 bits):
+_QR_TOTAL_MSG_LEN = (QR_MSG_LEN * 2) + QR_URL_LEN + 2
+    lda     #(QR_MODE << 4) + (_QR_TOTAL_MSG_LEN >> 5)  ; 4/9 len bits
+    sta     qrMsgData + QR_DEGREE-1+QR_MSG_INIT_LEN+2
+    lda     #$03 + ((_QR_TOTAL_MSG_LEN & $1f) << 3)     ; 5/9 len bits
+    sta     qrMsgData + QR_DEGREE-1+QR_MSG_INIT_LEN+1
+; copy remaining intit data:
     ldx     #QR_MSG_INIT_LEN
 .loopInit
     lda     QrMsgInit-1,x
@@ -846,7 +873,7 @@ QR_DEGREE = . - QR_Generator  ; verify data size
 
 QrMsgInit
     .byte   $fd, $95, $2c, $fa, $bc, $ed, $54, $b3
-    .byte   $56, $27, $f3, $20
+    .byte   $56, $27;, $f3, $20
 QR_MSG_INIT_LEN = . - QrMsgInit
 QR_URL_LEN      = 16
 
@@ -942,11 +969,10 @@ _RV = $80-QR_SIZE
     ror     .tmpFirst       ; 5 = 15
   IF !REVERSE
     dex                     ; 2
-    bpl     .loopQrKernel   ; 3/2=7/6   @70/69*
   ELSE
     inx                     ; 2
-    bpl     .loopQrKernel   ; 3/2=7/6   @70/69*
   ENDIF
+    bpl     .loopQrKernel   ; 3/2=7/6   @70/69*
     sty     ENAM1
     sty     GRP1
 ;---------------------------------------
@@ -965,9 +991,12 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrDrawCode
   ELSE ; /QR_SPRITE_GFX
 
 QR_BLOCK_H  = 7
-.tmpFirst   = qrTmpVars     ; leftmost pixel column (-> M1), ZP-RAM!
-.tmpFirst1  = qrTmpVars+1   ; ZP-RAM!
-.tmpFirst2  = qrTmpVars+2   ; ZP-RAM!
+;.tmpFirst   = qrTmpVars     ; leftmost pixel column (-> M1), ZP-RAM!
+;.tmpFirst1  = qrTmpVars+1   ; ZP-RAM!
+;.tmpFirst2  = qrTmpVars+2   ; ZP-RAM!
+.tmpFirst   = tmpVars+2   ; leftmost pixel column (-> M1), ZP-RAM!
+.tmpFirst1  = tmpVars+3   ; ZP-RAM!
+.tmpFirst2  = tmpVars+4   ; ZP-RAM!
 
 _qrDrawCode
 ; |PF0 |  PF1   |  PF2   |  PF2   |  PF1   |PF0 |
@@ -1000,8 +1029,15 @@ _qrDrawCode
     rol                     ;           = %1111110x
     sta     .tmpFirst2
 ; QR code display kernel:
+  IF !REVERSE
+_RV = 0
     ldx     #QR_SIZE-1
     bne     .loopQrKernel
+  ELSE
+_RV = $80-QR_SIZE
+    ldx     #_RV
+    jmp     .loopQrKernel
+  ENDIF
 
 ; QR code display kernel:
 .loopBlock
@@ -1019,17 +1055,17 @@ _qrDrawCode
 ; |....|...XXXXX|XXXXXXXX|XXXX|XXXXXXXX|........|
     lda     .tmpFirst       ; 3
     lsr                     ; 2
-    lda     .pf0R1LLst,x    ; 4
+    lda     .pf0R1LLst-_RV,x    ; 4
     and     #%1111          ; 2
     bcc     .clear          ; 2/3
     ora     #%10000         ; 2         CF needed for 1st ror
 .clear                      ;   = 14/15
     sta     PF1             ; 3         @17/18
-    lda     .pf2LLst,x      ; 4
+    lda     .pf2LLst-_RV,x      ; 4
     sta     PF2             ; 3 = 10    @24/25
-    lda     .pf0R1LLst,x    ; 4
+    lda     .pf0R1LLst-_RV,x    ; 4
     sta     PF0             ; 3         @31/32  >=27
-    lda     .pf1RLst,x      ; 4
+    lda     .pf1RLst-_RV,x      ; 4
     sta     PF1             ; 3 = 14    @38/39  >=38
     dey                     ; 2
     bne     .loopBlock      ; 3/2= 5/4  @43/44
@@ -1038,7 +1074,13 @@ _qrDrawCode
     ror     .tmpFirst       ; 5
     sty     PF2             ; 3
     sty     PF0             ; 3 = 21    @63/64
+
+  IF !REVERSE
     dex                     ; 2
+  ELSE
+    inx                     ; 2
+  ENDIF
+;    dex                     ; 2
     bpl     .loopQrKernel   ; 3/2= 5/4  @68/69
     sty     PF1             ;           @71
 
@@ -1066,13 +1108,15 @@ TIM_AS_S
 ;           |  P0L   |   P1   |  P0R   |
 ;          0|abcdefgh|ijklmnop|qrstuvwx| ->
 ;       -> 0|ponmabcd|lkjihgfe|qrstuvwx|
-.tmpLeft    = qrTmpVars
+;.tmpLeft    = qrTmpVars
+.tmpLeft    = tmpVars
 
     ldx     #QR_SIZE-1
 .loopRows
 ; rearrange grp0LLst & grp1Lst into pf0R1LLst
     lda     grp0LLst,x
-    sta     .tmpLeft
+;    sta     .tmpLeft
+    pha
     lda     grp1Lst,x
     ldy     #4
 .loopShift01a
@@ -1080,7 +1124,9 @@ TIM_AS_S
     rol     grp0LLst,x
     dey
     bne     .loopShift01a
-    lda     .tmpLeft
+;    lda     .tmpLeft
+    pla
+    pha
     ldy     #4
 .loopShift01b
     asl
@@ -1099,7 +1145,8 @@ TIM_AS_S
     rol     grp1Lst,x
     dey
     bne     .loopShift2a
-    lda     .tmpLeft
+;    lda     .tmpLeft
+    pla
     ldy     #4
 .loopShift2b
     lsr

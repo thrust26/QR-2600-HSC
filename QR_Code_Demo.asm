@@ -43,14 +43,14 @@ SCORE_BYTES     = 3         ; example number
 ;===============================================================================
 
 ; define message payload size:
-QR_MSG_LEN      = 1 + 3 + 1 + 1; PlusROM game ID, 3 x score, stage, variation
+QR_MSG_LEN      = 1 + 3 + 1 + 1+4; PlusROM game ID, 3 x score, stage, variation
 ; Note: An optional, short user id is planned. This will be mapped to an
 ; existing, long id. So that no further input is quired on the website.
 ; The user id would be entered inside the game then. There it could be stored
 ; and reused using e.g. the SaveKey.
 
-QR_BACK_COL     = $4e   ; white
-QR_FORE_COL     = $00   ; black
+QR_BACK_COL     = $0e   ; white
+QR_FORE_COL     = $80   ; black
 ; Note: other color combinations work too, as long as the contrast is high enough
 
 ;QR_LEVEL        = QR_LVL_L ; error correction level (default M)
@@ -69,7 +69,7 @@ QR_SPRITE_GFX   = 0 ; (-38 bytes) display playfield(0) or sprite graphics(1)
     SEG.U   variables
     ORG     $80
 
-tmpVars     ds 2            ; fireButton, resync
+tmpVars     ds 2 +3         ; fireButton, resync
 ; example variables
 scoreLst    ds SCORE_BYTES  ; game score
 scoreLo     = scoreLst
@@ -125,9 +125,6 @@ Start SUBROUTINE
     dex
     bpl     .loopClear
 
-
-
-
  ; define demo "game results":
 ;    lda     #$14
 ;    sta     variation
@@ -140,16 +137,16 @@ Start SUBROUTINE
 ;    lda     #$23
 ;    sta     stage ;
 
+    lda     #$15
+    sta     variation
+    lda     #$F7
+    sta     scoreHi
+    lda     #$aa
+    sta     scoreMid
     lda     #$24
     sta     scoreLo
-    lda     #$00
-    sta     scoreMid
-    lda     #$00
-    sta     scoreHi
-    lda     #1
+    lda     #$DE
     sta     stage
-    lda     #0
-    sta     variation
 
 
 
@@ -283,10 +280,15 @@ _qrMessageCode
     lda     stage
     jsr     QrAddMsg
 
-    ;lda     #$6a
-    ;jsr     QrAddMsg
-;    lda     #$3F
-;    jsr     QrAddMsg
+    lda     #$6a
+    jsr     QrAddMsg
+    lda     #$3F
+    jsr     QrAddMsg
+    lda     #$41
+    jsr     QrAddMsg
+    lda     #$58
+    jsr     QrAddMsg
+
 
     ECHO    "  QR Code message code #1:", [. - _qrMessageCode]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrMessageCode
