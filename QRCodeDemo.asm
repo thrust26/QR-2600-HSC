@@ -42,6 +42,15 @@ SCORE_BYTES     = 3         ; example number
 ; Q R   A S S E M B L E R - S W I T C H E S
 ;===============================================================================
 
+QR_BACK_COL     = $0e   ; white
+QR_FORE_COL     = $80   ; black
+; Note: other color combinations work too, as long as the contrast is high enough
+
+QR_SPRITE_GFX   = 0 ; (-30 bytes) display playfield(0) or sprite graphics(1)
+; Sprite graphics are small, but sufficient. And allow to display your own
+; graphics above and below.
+; Note: Step away from the display if your QR code reader has problems.
+
 ; define message payload size:
 QR_MSG_LEN      = 1 + 3 + 1 + 1;+4;+4; PlusROM game ID, 3 x score, stage, variation
 ; Note: An optional, short user id is planned. This will be mapped to an
@@ -49,22 +58,13 @@ QR_MSG_LEN      = 1 + 3 + 1 + 1;+4;+4; PlusROM game ID, 3 x score, stage, variat
 ; The user id would be entered inside the game then. There it could be stored
 ; and reused using e.g. the SaveKey.
 
-QR_BACK_COL     = $0e   ; white
-QR_FORE_COL     = $80   ; black
-; Note: other color combinations work too, as long as the contrast is high enough
-
 ;QR_LEVEL        = QR_LVL_L ; error correction level (default M)
 ; Enable this if your payload exceeds the maximum message size. This will weaken
 ; error correction but provide space for 4 extra chars.
 
-;QR_PADDING      = 1         ; add padding bytes to fill any space left
+QR_PADDING      = 0         ; add padding bytes to fill any space left
 ; Usually QR reader simply ignore the padding bytes. If you want to be 100%
 ; correct, you can enable this line. This costs 29 extra bytes ROM.
-
-QR_SPRITE_GFX   = 0 ; (-36 bytes) display playfield(0) or sprite graphics(1)
-; Sprite graphics are small, but sufficient. And allow to display your own
-; graphics above and below.
-; Note: Step away from the display if your QR code reader has problems.
 
 QR_ECHO_ON      = 1 ; 1 = echo some debug output to console
 ; Enable line for some debug output
@@ -86,6 +86,7 @@ scoreHi     = scoreLst+2
 stage       ds 1            ; game stage (level, wave...)
 variation   ds 1            ; game variation
 
+; these two variables define the RAM area for the QR code generation:
 qrRamStart                  ; QR code generation needs a LOT of ZP-RAM, which
     ds      80              ; starts here. Organize your RAM so that you have a
                             ; large unused area of RAM after the game ends.
@@ -120,14 +121,14 @@ Start SUBROUTINE
 ;    pha
 ;    bne     .clearLoop
 
-    ldx     #$ff
-    txs
+; clear TIA only, keep ZP-RAM random for testing:
     ldx     #$7f
     lda     #0
 .loopClear
     sta     $00,x
     dex
     bpl     .loopClear
+    txs
 
  ; define demo "game results":
 ;    lda     #$14

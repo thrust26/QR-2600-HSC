@@ -1046,44 +1046,41 @@ TIM_AS_S
 
     ldx     #QR_SIZE-1
 .loopRows
-; rearrange grp0LLst & grp1Lst into pf0R1LLst
+; rearrange low 4 bits of grp1Lst into grp0LLst:
     lda     grp0LLst,x
     pha
     lda     grp1Lst,x
     ldy     #4
-.loopShift01a
+.loopShift0a
     lsr                     ; 3..0 -> 0..3
     rol     grp0LLst,x
     dey
-    bne     .loopShift01a
+    bne     .loopShift0a
+; rearrange high 4 bits of grp1Lst into grp1Lst:
+    ldy     #4
+.loopShift1a
+    lsr
+    rol     grp1Lst,x
+    dey
+    bne     .loopShift1a
+; rearrange high 4 bits of grp0LLst into grp0LLst:
     pla
     pha
     ldy     #4
-.loopShift01b
+.loopShift0b
     asl
     rol     grp0LLst,x
     dey
-    bne     .loopShift01b
-; rearrange grp0LLst & grp1Lst into pf2LLst
-    lda     grp1Lst,x
-    lsr
-    lsr
-    lsr
-    lsr
-    ldy     #4
-.loopShift2a
-    lsr
-    rol     grp1Lst,x
-    dey
-    bne     .loopShift2a
+    bne     .loopShift0b
+; rearrange low 4 bits of grp0LLst into grp1Lst:
     pla
     ldy     #4
-.loopShift2b
+.loopShift1b
     lsr
     rol     grp1Lst,x
     dey
-    bne     .loopShift2b
-; loop
+    bne     .loopShift1b
+; loop:
     dex
     bpl     .loopRows
    ENDIF ; / !QR_SPRITE_GFX
