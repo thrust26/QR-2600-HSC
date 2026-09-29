@@ -1,8 +1,8 @@
-# QR Code Generator for Atari 2600 and PlusCart High Score Club
-Copyright 2026 - Thomas Jentzsch
+# QR Code Generator for Atari 2600 and PlusROM High Score Club
+Copyright 2021/2026 - Thomas Jentzsch
 
 ## The Code
-The code is supposed to generate QR codes for sending high scores to the PlusCart HSC using carts and stock consoles.
+The code is supposed to generate QR codes for sending high scores to the PlusROM HSC using carts and stock consoles.
 https://highscore.firmaplus.de
 
 ## Legal

@@ -3,7 +3,7 @@
 
 ; This demo shows, how to use the QR code generation library for displaying
 ; high score QR codes. These can be scanned with your smartphone (most cameras
-; support them natively) and then send to the PlusCart High Score Club.
+; support them natively) and then send to the PlusROM High Score Club.
 ; This allows adding high scores without using a PlusCart or emulator.
 
 ; *** General Use ***
@@ -262,7 +262,7 @@ _qrMessageCode
 ; initialize the QR code generation:
     QR_START_MSG            ; start adding your message payload
 
-; add the payload bytes (as defined for PlusCart HSC):
+; add the payload bytes (as defined for PlusROM HSC):
 .scoreIdx   = tmpVars
 
 ; Note: add the values in the same order as if sending them directly to the HSC

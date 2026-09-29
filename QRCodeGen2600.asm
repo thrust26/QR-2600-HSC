@@ -1,6 +1,6 @@
 ; *** HSC QR code generator ***
 ; (C)2021/2026 Thomas Jentzsch
-; specialized for creating URLs for the PlusCart HSC
+; specialized for creating URLs for the PlusROM HSC
 
 ; TODOs:
 ; - support non-ZP RAM
