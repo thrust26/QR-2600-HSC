@@ -43,7 +43,7 @@ SCORE_BYTES     = 3         ; example number
 ;===============================================================================
 
 ; define message payload size:
-QR_MSG_LEN      = 1 + 3 + 1 + 1+4;+4; PlusROM game ID, 3 x score, stage, variation
+QR_MSG_LEN      = 1 + 3 + 1 + 1;+4;+4; PlusROM game ID, 3 x score, stage, variation
 ; Note: An optional, short user id is planned. This will be mapped to an
 ; existing, long id. So that no further input is quired on the website.
 ; The user id would be entered inside the game then. There it could be stored
@@ -56,6 +56,10 @@ QR_FORE_COL     = $80   ; black
 ;QR_LEVEL        = QR_LVL_L ; error correction level (default M)
 ; Enable this if your payload exceeds the maximum message size. This will weaken
 ; error correction but provide space for 4 extra chars.
+
+;QR_PADDING      = 1         ; add padding bytes to fill any space left
+; Usually QR reader simply ignore the padding bytes. If you want to be 100%
+; correct, you can enable this line. This costs 29 extra bytes ROM.
 
 QR_SPRITE_GFX   = 0 ; (-36 bytes) display playfield(0) or sprite graphics(1)
 ; Sprite graphics are small, but sufficient. And allow to display your own
@@ -280,16 +284,17 @@ _qrMessageCode
 ; add stage:
     lda     stage
     jsr     QrAddMsg
+; H.FIRMAPLUS.DE/Q3915F7AA24DE6A5C
 
 ; H.FIRMAPLUS.DE/Q3915F7AA24DE6A3F4158BA
-    lda     #$6a
-    jsr     QrAddMsg
-    lda     #$3F
-    jsr     QrAddMsg
-    lda     #$41
-    jsr     QrAddMsg
-    lda     #$58
-    jsr     QrAddMsg
+;    lda     #$6a
+;    jsr     QrAddMsg
+;    lda     #$3F
+;    jsr     QrAddMsg
+;    lda     #$41
+;    jsr     QrAddMsg
+;    lda     #$58
+;    jsr     QrAddMsg
 
 ;; H.FIRMAPLUS.DE/Q3915F7AA24DE6A3F4158FD6CE57FBE
 ;    lda     #$FD

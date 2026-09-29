@@ -31,7 +31,8 @@ QR_LVL_H        = 3         ; unsupported
 QR_LEVEL        = QR_LVL_M  ; 0..3, error correction levels L, M, Q, H
   ENDIF
   IFNCONST QR_PADDING
-QR_PADDING      = 1         ; 0|1, (+31 bytes) add padding bytes add the end of test message text
+QR_PADDING      = 0         ; 0|1, (+29 bytes) add padding bytes add the end of
+                            ; message text (usually works without)
   ENDIF
 
 
@@ -574,7 +575,7 @@ TIM_MS_S
     dex
     bne     .loopInit
     stx     qrCrc8
-    stx     qrInputIdx      ; only even or odd needed
+    stx     qrInputIdx      ; only even or odd needed (URL has even length)
    IF QR_LEVEL = QR_LVL_L
     lda     #$15
    ENDIF
@@ -590,13 +591,6 @@ TIM_MS_S
   MAC QR_ADD_MSG_CODE
 ;---------------------------------------------------------------
 _qrAddMsgCode
-;---------------------------------------------------------------
-_QrAddCrc8 SUBROUTINE
-;---------------------------------------------------------------
-    lda     qrCrc8
-
-    ; falls through
-
 ;---------------------------------------------------------------
 QrAddMsg SUBROUTINE
 ;---------------------------------------------------------------
@@ -627,6 +621,8 @@ QrAddMsg SUBROUTINE
     jsr     _QrAddMsgDirect
     lda     .hexVal
     and     #$0f
+
+    ; falls through to next routine
 ; /QrAddMsg
 
 ;---------------------------------------------------------------
@@ -686,21 +682,19 @@ _QrAddMsgDirect
     asl
     asl
     ldy     #3              ; 3 bits
-    jsr     _AddQrBits
+    jsr     _QrAddBits
     lda     .prodLo         ; low byte
-    ldy     #8              ; 8 bits
-    jsr     _AddQrBits
-.doneFirstByte
-    rts
+
+    ; falls through to next routine
 ; /QrAddMsgChar
 
 ;---------------------------------------------------------------
-_QrAdd4Bits SUBROUTINE
+_QrAdd8Bits ;SUBROUTINE
 ;---------------------------------------------------------------
 .tmpByte    = qrMsgTmp
 
-    ldy     #4
-_AddQrBits
+    ldy     #8              ; 8 bits
+_QrAddBits
 .loopBits
     asl
     rol     qrNewByte       ; ZP-RAM!
@@ -718,8 +712,9 @@ _AddQrBits
 .contByte
     dey
     bne     .loopBits
+.doneFirstByte
     rts
-; /_QrAdd4Bits
+; /_QrAddBits
 
     ECHO    "  QR Code message code #2:", [. - _qrAddMsgCode]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrAddMsgCode
@@ -729,29 +724,32 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrAddMsgCode
 ;-----------------------------------------------------------
   MAC QR_STOP_MSG
 ;-----------------------------------------------------------
-    jsr     _QrAddCrc8      ; CRC8
+    lda     qrCrc8
+    jsr     QrAddMsg
 
-    lda     qrInputIdx
+  IF 0 ;{
+; as long as we add only bytes (char pairs), this will always skip
+    lda     qrInputIdx      ; TODO: this could be defined at assemble time
     lsr
     bcc     .noSecondByte
     lda     qrMsgTmp
     asl
     asl
     ldy     #6
-    jsr     _AddQrBits
+    jsr     _QrAddBits
 .noSecondByte
+  ENDIF ;}
    IF !QR_PADDING
-    lda     #0
-    ldy     #8
-    jsr     _AddQrBits       ; make sure last byte is written
-   ELSE
+    tya                      ; Y = 0 returning from QrAddMsg/_QrAddBits
+    jsr     _QrAdd8Bits      ; make sure last byte is written
+   ELSE ;{
 ; add terminator
     lda     #(QR_TERM << 4)
     ldy     #4
-    jsr     _QrAdd4Bits
+    jsr     _QrAddBits
 ; fill and store last byte:
     ldx     qrMsgIdx
-    lda     qrNewByte
+    lda     qrNewByte       ; TODO: this could be defined at assemble time
     cmp     #1              ; only byte full marker?
     beq     .emptyByte      ;  yes, byte empty
 .loopBits
@@ -760,19 +758,16 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrAddMsgCode
     sta     qrMsgData,x
     dex
 .emptyByte
-    txa
+    txa                     ; TODO: this could be defined at assemble time
     bmi     .donePadding
+    lda     #$ec            ; TODO: this could be defined at assemble time
 .loopPadding
-    lda     #$ec
     sta     qrMsgData,x
-    dex
-    bmi     .donePadding
-    lda     #$11
-    sta     qrMsgData,x
+    eor     #$ec ^ $11
     dex
     bpl     .loopPadding
-   ENDIF ;/QR_PADDING
 .donePadding
+   ENDIF ;}/QR_PADDING
   ENDM ; /QR_STOP_MSG
 
 ;-----------------------------------------------------------
