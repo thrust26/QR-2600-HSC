@@ -9,13 +9,13 @@
 ; *** General Use ***
 ; There are only a few DASM macros you have to use:
 ;
-; for QR Code generation:
+; For QR Code generation:
 ; - QR_START_MSG
 ; - add payload (using QrAddMsg subroutine for each byte)
 ; - QR_GEN_CODE
 ;
-; for QR Code display:
-; - QR_DRAW_CODE {upper border} {lower boarder}
+; For QR Code display:
+; - QR_DRAW_CODE {upper border} {lower border}
 ;
 ; Additional macros (put them where you want):
 ; - QR_ADD_MSG_CODE
@@ -43,7 +43,7 @@ SCORE_BYTES     = 3         ; example number
 ;===============================================================================
 
 ; define message payload size:
-QR_MSG_LEN      = 1 + 3 + 1 + 1;+4;+4; PlusROM game ID, 3 x score, stage, variation
+QR_MSG_LEN      = 1 + 3 + 1 + 1+4;+4; PlusROM game ID, 3 x score, stage, variation
 ; Note: An optional, short user id is planned. This will be mapped to an
 ; existing, long id. So that no further input is quired on the website.
 ; The user id would be entered inside the game then. There it could be stored
@@ -70,8 +70,8 @@ QR_SPRITE_GFX   = 0 ; (-36 bytes) display playfield(0) or sprite graphics(1)
     SEG.U   variables
     ORG     $80
 
-tmpVars     ds 2 +3         ; fireButton, resync
-; example variables
+tmpVars     ds 2            ; score loop, fireButton, resync
+; example variables:
 scoreLst    ds SCORE_BYTES  ; game score
 scoreLo     = scoreLst
 scoreMid    = scoreLst+1
@@ -79,15 +79,11 @@ scoreHi     = scoreLst+2
 stage       ds 1            ; game stage (level, wave...)
 variation   ds 1            ; game variation
 
-qrRamStart                  ; QR code generation needs a LOT of ZP-RAM, which starts here
-    ds      100             ; organize your RAM so that you have a large unused area
-                            ;  after the game ends,
-                            ;  This is the most tricky part for you!
+qrRamStart                  ; QR code generation needs a LOT of ZP-RAM, which
+    ds      80              ; starts here. Organize your RAM so that you have a
+                            ; large unused area of RAM after the game ends.
+                            ; This is the most tricky part for you!
 qrRamEnd                    ; end of QR code RAM
-
-; temporary vars used by demo code:
-fireButton  = tmpVars
-resync      = tmpVars+1
 
 
 ;===============================================================================
@@ -129,14 +125,14 @@ Start SUBROUTINE
  ; define demo "game results":
 ;    lda     #$14
 ;    sta     variation
-;    lda     #$56
-;    sta     scoreLo
-;    lda     #$34
-;    sta     scoreMid
 ;    lda     #$12
 ;    sta     scoreHi
+;    lda     #$34
+;    sta     scoreMid
+;    lda     #$56
+;    sta     scoreLo
 ;    lda     #$23
-;    sta     stage ;
+;    sta     stage
 
     lda     #$15
     sta     variation
@@ -149,19 +145,25 @@ Start SUBROUTINE
     lda     #$DE
     sta     stage
 
+    lda     #2
+    sta     VBLANK
 
-
+; just loop generation and display:
 .loop4Ever
-    jsr     GenQrCode       ; QR code generation
+    jsr     GenerateQrCode  ; QR code generation
     jsr     DisplayQrCode   ; generated QR code display
     jmp     .loop4Ever      ; usually one would continue with the game here
 
 ;---------------------------------------------------------------
 DisplayQrCode SUBROUTINE
 ;---------------------------------------------------------------
-    lda     #2-1
+fireButton  = tmpVars
+resync      = tmpVars+1
+
+    lda     #2-1            ; debounce fire button and init resync
     sta     fireButton      ; mark as pressed before, 2 state changes required
-    sta     resync          ; next 6 frames are displayed blank for resync
+    sta     resync          ; it takes ~8 frames to generate the QR code, so the
+                            ; next 6 frames are displayed blank for resync
 
 .mainLoop
     lda     #%00001110
@@ -175,7 +177,7 @@ DisplayQrCode SUBROUTINE
   IF QR_SPRITE_GFX
 _EXTRA_LINES    = 0
   ELSE
-_EXTRA_LINES    = 4     ; PF display needs some extra lines for a nice gap
+_EXTRA_LINES    = 4         ; PF display needs some extra lines for a nice gap
   ENDIF
 
   IF NTSC_TIM
@@ -235,7 +237,7 @@ FireStates
 ; /DisplayQrCode
 
 ;---------------------------------------------------------------
-GenQrCode SUBROUTINE
+GenerateQrCode SUBROUTINE
 ;---------------------------------------------------------------
 .msgPos     = tmpVars
 
@@ -245,9 +247,7 @@ GenQrCode SUBROUTINE
 ;    sta     AUDV1
 ; reset some TIA registers (optional):
   IF QR_SPRITE_GFX
-;    sta     NUSIZ0
 ;    sta     NUSIZ1
-;    sta     VDELP0
 ;    ...
   ENDIF
 
@@ -281,7 +281,7 @@ _qrMessageCode
     lda     stage
     jsr     QrAddMsg
 
-; H.FIRMAPLUS.DE/Q3915F7AA24DE6A3F4158??
+; H.FIRMAPLUS.DE/Q3915F7AA24DE6A3F4158BA
     lda     #$6a
     jsr     QrAddMsg
     lda     #$3F
@@ -299,8 +299,7 @@ _qrMessageCode
 ;    lda     #$E5
 ;    jsr     QrAddMsg
 ;    lda     #$7F
-;    jsr     QrAddMsg ;
-
+;    jsr     QrAddMsg
 
     ECHO    "  QR Code message code #1:", [. - _qrMessageCode]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrMessageCode
@@ -308,7 +307,7 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrMessageCode
 ; generate the QR code for the given message:
     QR_GEN_CODE             ; here all the magic happens! :-)
     rts
-; /GenQrCode
+; /GenerateQrCode
 
 ; Note: includes are split into 4 parts for more flexible use
 ; include some extra QR code:
@@ -332,4 +331,4 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrMessageCode
     ECHO    "  QR Code total:", [_QR_TOTAL]d, "bytes ROM,", [_QR_RAM]d, "bytes RAM"
     ECHO    ""
     ECHO    "  QR Code Version", [QR_VERSION]d, ", Level", [QR_LEVEL]d, ", Degree", [QR_DEGREE]d, ", Mode", [QR_MODE]d, "(Alphanumeric) -> Capacity", [QR_CAPACITY_BITS]d, "bits"
-    ECHO    "    -> Message Space", [QR_MAX_MSG]d, "bytes (", [QR_MSG_LEN]d, "used )"
+    ECHO    "    -> Message Space:", [QR_MAX_MSG]d, "bytes (", [QR_MSG_LEN]d, "used )"

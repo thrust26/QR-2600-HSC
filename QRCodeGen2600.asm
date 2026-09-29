@@ -113,12 +113,13 @@ _QR_TOTAL   SET 0
     SEG.U   variables
     ORG     qrRamStart
 
-; memory layout:
+; Memory Layout (data overlapping):
 ;           1         2         3         4         5         6         7
 ; 01234567890123456789012345678901234567890123456789012345678901234567890123456789
 ; rrrrrrrrrrrrrrrrmmmmmmmmmmmmmmmmmmmmmmmmmmmmttttttttt
 ;     QqqqqqqqqqqqqqqqqqqqqqqqqQQqqqqqqqqqqqqqqqqqqqqqqqqQqqqqqqqqqqqqqqqqqqqqqqqq
-;                                                                           tttttt
+; ttt                                                                       tttttt
+; (r=remainder, m=message, t=msg tmp, Qq=QR code, t=draw/qr tmps)
 
 ; Capacities:
 ; first column:   8 bits =  1     byte  (8 * 1)
@@ -133,7 +134,7 @@ _QR_TOTAL   SET 0
 ; all byte counts based on version 2, level M QR code
 
 ; input data (remainder and message):
-qrData      ds QR_TOTAL             ; 48 bytes
+qrData      ds QR_TOTAL             ; 44 bytes
 qrRemainder = qrData                ; (QR_DEGREE = e.g. 16 bytes)
 qrMsgData   = qrData + QR_DEGREE    ; (QR_MAX_DATA = e.g. 28 bytes)
 ; used during add message only:
@@ -147,11 +148,12 @@ qrUrlPos    = qrMsgTmp+5
 
 qrTmpVars   = grp0RLst + QR_SIZE - 6 ; overlaps with top right eye
 ;- - - - - - - - - - - - - - - - - - - -
-; The QR draw data overlaps the QR code data! It overwrites the QR code data while being drawn.
-QR_NON_OVER = 4; + 8
+; The QR draw data overlaps the QR code data! It overwrites the QR code data
+; while being drawn.
+QR_NON_OVER = 4
 ; generated QR code data, used for drawing (76 bytes needed):
 qrCodeLst   = qrData + QR_NON_OVER  ; all but 4 bytes overlap (version 2 only!)
-            ds NUM_FIRST + QR_SIZE*3 - QR_TOTAL + QR_NON_OVER   ; 32 bytes
+            ds NUM_FIRST + QR_SIZE*3 - QR_TOTAL + QR_NON_OVER   ; 36 bytes
 CODE_LST_SIZE   = . - qrCodeLst
 _QR_RAM         = . - qrRamStart
 
@@ -542,10 +544,10 @@ TIM_DF_S
     ldx     #CODE_LST_SIZE-1
 .loopEor
     lda     qrCodeLst,x
-; clear horizontal timing byte
+; clear horizontal timing byte:
     cpx     #NUM_FIRST + QR_SIZE*2-1-6
     beq     .clearByte
-; clear top right eye
+; clear top right eye:
     cpx     #NUM_FIRST + QR_SIZE*3-1-8
     bcc     .skipOra
 .clearByte
@@ -564,17 +566,11 @@ TIM_DF_E
   MAC QR_START_MSG
 ;-----------------------------------------------------------
 TIM_MS_S
-; mix mode (4 bits), length (9 bits) and first URL char (3 bits):
-_QR_TOTAL_MSG_LEN = (QR_MSG_LEN * 2) + QR_URL_LEN + 2
-    lda     #(QR_MODE << 4) + (_QR_TOTAL_MSG_LEN >> 5)  ; 4/9 len bits
-    sta     qrData + QR_TOTAL - 1
-    lda     #$03 + ((_QR_TOTAL_MSG_LEN & $1f) << 3)     ; 5/9 len bits
-    sta     qrData + QR_TOTAL - 2
-; copy remaining intit data:
+; copy init data:
     ldx     #QR_MSG_INIT_LEN
 .loopInit
     lda     QrMsgInit - 1,x
-    sta     qrData + QR_TOTAL - 3 - QR_MSG_INIT_LEN,x
+    sta     qrData + QR_TOTAL - 1 - QR_MSG_INIT_LEN,x
     dex
     bne     .loopInit
     stx     qrCrc8
@@ -833,7 +829,11 @@ QR_DEGREE = . - QR_Generator  ; verify data size
 
 QrMsgInit
     .byte   $fd, $95, $2c, $fa, $bc, $ed, $54, $b3
-    .byte   $56, $27;, $f3, $20
+    .byte   $56, $27
+; mix mode (4 bits), length (9 bits) and first URL char (3 bits):
+_QR_TOTAL_MSG_LEN = (QR_MSG_LEN * 2) + QR_URL_LEN + 2   ; include CRC
+    .byte   #$03 + ((_QR_TOTAL_MSG_LEN & $1f) << 3)     ; 5/9 len bits
+    .byte   (QR_MODE << 4) + (_QR_TOTAL_MSG_LEN >> 5)   ; 4/9 len bits
 QR_MSG_INIT_LEN = . - QrMsgInit
 QR_URL_LEN      = 16
 
@@ -860,14 +860,14 @@ _qrDrawCode
     sta     COLUBK
     stx     COLUP0
     stx     COLUP1
-    lda     #%001|$80
+    lda     #%001|$80       ; two copies of GRP0
     sta     NUSIZ0
     sta     HMM1
     ldx     #$1f
     stx     HMP0
     inx
     stx     HMP1
-    php                 ; waste 7 cycles
+    php                     ; waste 7 cycles
     plp
     ldx     #{1}
     sta     RESM1
