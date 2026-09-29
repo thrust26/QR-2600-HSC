@@ -66,6 +66,9 @@ QR_SPRITE_GFX   = 0 ; (-36 bytes) display playfield(0) or sprite graphics(1)
 ; graphics above and below.
 ; Note: Step away from the display if your QR code reader has problems.
 
+QR_ECHO_ON      = 1 ; 1 = echo some debug output to console
+; Enable line for some debug output
+
 
 ;===============================================================================
 ; Z P - V A R I A B L E S
@@ -306,7 +309,7 @@ _qrMessageCode
 ;    lda     #$7F
 ;    jsr     QrAddMsg
 
-    ECHO    "  QR Code message code #1:", [. - _qrMessageCode]d, "bytes"
+    QR_ECHO "  QR Code message code #1:", [. - _qrMessageCode]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrMessageCode
 
 ; generate the QR code for the given message:
@@ -314,8 +317,8 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrMessageCode
     rts
 ; /GenerateQrCode
 
-; Note: includes are split into 4 parts for more flexible use
-; include some extra QR code:
+; Note: these macros are split into 4 parts for more flexible use
+; they include some extra QR code:
     QR_ADD_MSG_CODE
     QR_BITMAP_CODE
 
@@ -332,8 +335,8 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrMessageCode
 ; O U T P U T
 ;===============================================================================
 
-    ECHO    "  --------------------------------------------"
-    ECHO    "  QR Code total:", [_QR_TOTAL]d, "bytes ROM,", [_QR_RAM]d, "bytes RAM"
-    ECHO    ""
-    ECHO    "  QR Code Version", [QR_VERSION]d, ", Level", [QR_LEVEL]d, ", Degree", [QR_DEGREE]d, ", Mode", [QR_MODE]d, "(Alphanumeric) -> Capacity", [QR_CAPACITY_BITS]d, "bits"
-    ECHO    "    -> Message Space:", [QR_MAX_MSG]d, "bytes (", [QR_MSG_LEN]d, "used )"
+    QR_ECHO "  --------------------------------------------"
+    QR_ECHO "  QR Code total:", [_QR_TOTAL]d, "bytes ROM,", [_QR_RAM]d, "bytes RAM"
+    QR_ECHO ""
+    QR_ECHO "  QR Code Version", [QR_VERSION]d, ", Level", [QR_LEVEL]d, ", Degree", [QR_DEGREE]d, ", Mode", [QR_MODE]d, "(Alphanumeric) -> Capacity", [QR_CAPACITY_BITS]d, "bits"
+    QR_ECHO "    -> Message Space:", [QR_MAX_MSG]d, "bytes (", [QR_MSG_LEN]d, "used )"

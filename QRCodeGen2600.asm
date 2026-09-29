@@ -24,15 +24,18 @@
 ; QR code error correction levels:
 QR_LVL_L        = 0
 QR_LVL_M        = 1
-QR_LVL_Q        = 2         ; unsupported
-QR_LVL_H        = 3         ; unsupported
+;QR_LVL_Q        = 2         ; unsupported
+;QR_LVL_H        = 3         ; unsupported
 
   IFNCONST QR_LEVEL
-QR_LEVEL        = QR_LVL_M  ; 0..3, error correction levels L, M, Q, H
+QR_LEVEL        = QR_LVL_M  ; error correction levels L, M (, Q, H)
   ENDIF
   IFNCONST QR_PADDING
 QR_PADDING      = 0         ; 0|1, (+29 bytes) add padding bytes add the end of
                             ; message text (usually works without)
+  ENDIF
+  IFNCONST QR_ECHO_ON
+QR_ECHO_ON      = 0         ; 1 = echo some debug output to console
   ENDIF
 
 
@@ -40,12 +43,9 @@ QR_PADDING      = 0         ; 0|1, (+29 bytes) add padding bytes add the end of
 ; C A L C U L A T E D   Q R   C O D E   C O N S T A N T S
 ;===============================================================================
 
-; QR code mode:
-QR_ALPHA        = %0010
-
 ; Do NOT change the following constants!
-QR_VERSION      = 2         ; 2, QR code size (25)
-QR_MODE         = QR_ALPHA
+QR_VERSION      = 2         ; QR code size (25)
+QR_MODE         = %0010     ; alphanumerich mode
 
 QR_DEGREE       = 10 + QR_LEVEL * 6     ; 10 or 16
 QR_SIZE         = 17 + QR_VERSION * 4   ; 21 or 25
@@ -53,25 +53,24 @@ QR_SIZE         = 17 + QR_VERSION * 4   ; 21 or 25
 ; Calculate capacity based on version
 _QR_VAL SET (QR_VERSION * 16 + 128) * QR_VERSION + 64
   IF QR_VERSION >= 2
-_QR_NUM_ALIGN = QR_VERSION / 7 + 2
+_QR_NUM_ALIGN   = QR_VERSION / 7 + 2
 _QR_VAL SET _QR_VAL - ((25 * _QR_NUM_ALIGN - 10) * _QR_NUM_ALIGN - 55)
   ENDIF
 QR_CAPACITY_BITS = _QR_VAL / 8 * 8
-;QR_CAPACITY = _QR_VAL / 8
-QR_TERM     = %0000; terminator
+QR_TERM         = %0000; terminator
 
-QR_MAX_DATA = QR_CAPACITY_BITS / 8 - QR_DEGREE
+QR_MAX_DATA     = QR_CAPACITY_BITS / 8 - QR_DEGREE
 
-QR_POLY     = $11d  ; GF(2^8) is based on 9 bit polynomial
-                    ; x^8 + x^4 + x^3 + x^2 + 1 = 0x11d
+QR_POLY         = $11d  ; GF(2^8) is based on 9 bit polynomial
+                        ; x^8 + x^4 + x^3 + x^2 + 1 = 0x11d
 
-_QR_MAX_MSG = (QR_MAX_DATA * 8 - 13) * 2 / 11
-QR_MAX_MSG  = (_QR_MAX_MSG - (QR_URL_LEN + 2)) / 2  ; URL + (CRC8 * 2)
-QR_TOTAL    = QR_MAX_DATA + QR_DEGREE ; e.g. 44
+_QR_MAX_MSG     = (QR_MAX_DATA * 8 - 13) * 2 / 11
+QR_MAX_MSG      = (_QR_MAX_MSG - (_QR_URL_LEN + 2)) / 2  ; URL + (CRC8 * 2)
+QR_TOTAL        = QR_MAX_DATA + QR_DEGREE ; e.g. 44
 
-NUM_FIRST   = 1     ; left top 9 and bottom 8 bits are fixed!
+NUM_FIRST       = 1     ; left top 9 and bottom 8 bits are fixed!
 
-_QR_TOTAL   SET 0
+_QR_TOTAL SET 0         ; ROM bytes used counter
 
 
 ;===============================================================================
@@ -84,25 +83,25 @@ _QR_TOTAL   SET 0
 ; a major problem)
 
   IFNCONST qrRamStart
-    ECHO    ""
-    ECHO    "!!! ERROR: qrRamStart not defined !!!"
+    QR_ECHO ""
+    QR_ECHO "!!! ERROR: qrRamStart not defined !!!"
     ERR
   ENDIF
   IFNCONST qrRamEnd
-    ECHO    ""
-    ECHO    "!!! ERROR: qrRamEnd not defined !!!"
+    QR_ECHO ""
+    QR_ECHO "!!! ERROR: qrRamEnd not defined !!!"
     ERR
   ENDIF
 
   IFNCONST QR_MSG_LEN
-    ECHO     ""
-    ECHO    "!!! ERROR: QR code message length not defined !!!"
+    QR_ECHO  ""
+    QR_ECHO "!!! ERROR: QR code message length not defined !!!"
     ERR
   ENDIF
 
   IF QR_MAX_MSG < QR_MSG_LEN
-    ECHO     ""
-    ECHO    "!!! ERROR: QR code message length (", [QR_MSG_LEN]d, ") > maximum length (", [QR_MAX_MSG]d, ") !!!"
+    QR_ECHO  ""
+    QR_ECHO "!!! ERROR: QR code message length (", [QR_MSG_LEN]d, ") > maximum length (", [QR_MAX_MSG]d, ") !!!"
     ERR
   ENDIF
 
@@ -120,7 +119,7 @@ _QR_TOTAL   SET 0
 ; rrrrrrrrrrrrrrrrmmmmmmmmmmmmmmmmmmmmmmmmmmmmttttttttt
 ;     QqqqqqqqqqqqqqqqqqqqqqqqqQQqqqqqqqqqqqqqqqqqqqqqqqqQqqqqqqqqqqqqqqqqqqqqqqqq
 ; ttt                                                                       tttttt
-; (r=remainder, m=message, t=msg tmp, Qq=QR code, t=draw/qr tmps)
+; (r=remainder, m=message, t=msg tmp, q=QR code, t=draw/qr tmps)
 
 ; Capacities:
 ; first column:   8 bits =  1     byte  (8 * 1)
@@ -155,13 +154,13 @@ QR_NON_OVER = 4
 ; generated QR code data, used for drawing (76 bytes needed):
 qrCodeLst   = qrData + QR_NON_OVER  ; all but 4 bytes overlap (version 2 only!)
             ds NUM_FIRST + QR_SIZE*3 - QR_TOTAL + QR_NON_OVER   ; 36 bytes
-CODE_LST_SIZE   = . - qrCodeLst
-_QR_RAM         = . - qrRamStart
+_QR_CODE_LST_SIZE   = . - qrCodeLst
+_QR_RAM             = . - qrRamStart
 
   IF . > qrRamEnd
-    ECHO    ""
-    ECHO    "!!! ERROR: QR code RAM data overwrites game RAM data! (", qrRamEnd, "<", ., ") !!!"
-    ECHO    "   ", [. - qrRamStart]d, "bytes ZP RAM required!"
+    QR_ECHO ""
+    QR_ECHO "!!! ERROR: QR code RAM data overwrites game RAM data! (", qrRamEnd, "<", ., ") !!!"
+    QR_ECHO "   ", [. - qrRamStart]d, "bytes ZP RAM required!"
     ERR
   ENDIF
 
@@ -185,6 +184,14 @@ qrDispVars  = qrData  ; 3 bytes (overlaps with qrRemainder)
 
   MAC BIT_W     ; skip 2 bytes, 4 cycles
     .byte   $2c
+  ENDM
+
+;-----------------------------------------------------------
+  MAC QR_ECHO
+;-----------------------------------------------------------
+   IF QR_ECHO_ON
+    ECHO    {0}
+   ENDIF
   ENDM
 
 ; The following code has been partially converted from the C code of the
@@ -533,7 +540,7 @@ _QrInvertPixel SUBROUTINE
     sta     grp0RLst,x
     rts
 
-    ECHO    "  QR Code bitmap code:", [. - _qrBitMapCode]d, "bytes"
+    QR_ECHO "  QR Code bitmap code:", [. - _qrBitMapCode]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrBitMapCode
   ENDM ; /QR_BITMAP_CODE
 
@@ -542,7 +549,7 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrBitMapCode
 ;-----------------------------------------------------------
 TIM_DF_S
 ; Draws all function, alignment, timing and mask pattern over existing codewords
-    ldx     #CODE_LST_SIZE-1
+    ldx     #_QR_CODE_LST_SIZE-1
 .loopEor
     lda     qrCodeLst,x
 ; clear horizontal timing byte:
@@ -568,10 +575,10 @@ TIM_DF_E
 ;-----------------------------------------------------------
 TIM_MS_S
 ; copy init data:
-    ldx     #QR_MSG_INIT_LEN
+    ldx     #_QR_MSG_INIT_LEN
 .loopInit
     lda     QrMsgInit - 1,x
-    sta     qrData + QR_TOTAL - 1 - QR_MSG_INIT_LEN,x
+    sta     qrData + QR_TOTAL - 1 - _QR_MSG_INIT_LEN,x
     dex
     bne     .loopInit
     stx     qrCrc8
@@ -618,7 +625,7 @@ QrAddMsg SUBROUTINE
     lsr
     lsr
     lsr
-    jsr     _QrAddMsgDirect
+    jsr     QrAddMsgChar
     lda     .hexVal
     and     #$0f
 
@@ -628,8 +635,7 @@ QrAddMsg SUBROUTINE
 ;---------------------------------------------------------------
 QrAddMsgChar SUBROUTINE
 ;---------------------------------------------------------------
-; must be inside a subroutine for QR_ALPHA!
-_QrAddMsgDirect
+; must be inside a subroutine for alphanumeric mode!
     tax
     lda     qrInputIdx
     inc     qrInputIdx      ; ZP-RAM!
@@ -716,7 +722,7 @@ _QrAddBits
     rts
 ; /_QrAddBits
 
-    ECHO    "  QR Code message code #2:", [. - _qrAddMsgCode]d, "bytes"
+    QR_ECHO "  QR Code message code #2:", [. - _qrAddMsgCode]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrAddMsgCode
 
   ENDM  ; /QR_ADD_MSG_CODE
@@ -794,7 +800,7 @@ DrawFunc
     _QR_ARRANGE_DRAW_DATA    ; required only for PF display
 TIM_GN_E
 
-    ECHO    "  QR Code encoding code:", [. - _qrCodeCode]d, "bytes"
+    QR_ECHO "  QR Code encoding code:", [. - _qrCodeCode]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrCodeCode
   ENDM ; /QR_GEN_CODE
 
@@ -826,13 +832,13 @@ QrMsgInit
     .byte   $fd, $95, $2c, $fa, $bc, $ed, $54, $b3
     .byte   $56, $27
 ; mix mode (4 bits), length (9 bits) and first URL char (3 bits):
-_QR_TOTAL_MSG_LEN = (QR_MSG_LEN * 2) + QR_URL_LEN + 2   ; include CRC
+_QR_TOTAL_MSG_LEN   = (QR_MSG_LEN * 2) + _QR_URL_LEN + 2   ; include CRC
     .byte   #$03 + ((_QR_TOTAL_MSG_LEN & $1f) << 3)     ; 5/9 len bits
     .byte   (QR_MODE << 4) + (_QR_TOTAL_MSG_LEN >> 5)   ; 4/9 len bits
-QR_MSG_INIT_LEN = . - QrMsgInit
-QR_URL_LEN      = 16
+_QR_MSG_INIT_LEN    = . - QrMsgInit
+_QR_URL_LEN         = 16
 
-    ECHO    "  QR Code encoding data:", [. - _qrCodeData]d, "bytes"
+    QR_ECHO "  QR Code encoding data:", [. - _qrCodeData]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrCodeData
 
   ENDM ; /QR_CODE_DATA
@@ -842,7 +848,7 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrCodeData
 ;---------------------------------------------------------------
   IF QR_SPRITE_GFX
 ; Display: M1, P0a, P1, P0b (25 pixel)
-QR_BLOCK_H  = 2     ; QR code pixel height
+_QR_BLOCK_H = 2     ; QR code pixel height
 .tmpFirst   = qrDispVars    ; leftmost pixel column (-> M1), ZP-RAM!
 .tmpFirst1  = qrDispVars+1  ; ZP-RAM!
 .tmpFirst2  = qrDispVars+2  ; ZP-RAM!
@@ -892,7 +898,7 @@ _qrDrawCode
 ; QR code display kernel:
     ldx     #QR_SIZE-1
 .loopQrKernel               ;           @70*
-    ldy     #QR_BLOCK_H     ; 2 = 2
+    ldy     #_QR_BLOCK_H    ; 2 = 2
 .loopBlock
     sta     WSYNC           ; 3 = 3     @75*
 ;---------------------------------------
@@ -930,12 +936,12 @@ _qrDrawCode
     dex
     bne     .loopWaitBtm
 
-    ECHO    "  QR Code sprite kernel:", [. - _qrDrawCode]d, "bytes"
+    QR_ECHO "  QR Code sprite kernel:", [. - _qrDrawCode]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrDrawCode
 
   ELSE ; /QR_SPRITE_GFX
 
-QR_BLOCK_H  = 7
+_QR_BLOCK_H = 7
 .tmpFirst   = qrDispVars    ; leftmost pixel column (-> M1), ZP-RAM!
 .tmpFirst1  = qrDispVars+1  ; ZP-RAM!
 .tmpFirst2  = qrDispVars+2  ; ZP-RAM!
@@ -953,7 +959,7 @@ _qrDrawCode
     sta     COLUBK
 
 ; some vertical centering
-    ldx     #{1}            ; (200 - QR_SIZE * QR_BLOCK_H) / 2
+    ldx     #{1}            ; (200 - QR_SIZE * _QR_BLOCK_H) / 2
 .waitTop
     dex
     sta     WSYNC
@@ -982,7 +988,7 @@ _qrDrawCode
     sta     PF0             ; 3         @46/47
     BIT_W                   ; 2 = 12
 .loopQrKernel               ;           @68/69
-    ldy     #QR_BLOCK_H     ; 2
+    ldy     #_QR_BLOCK_H    ; 2
     sta     WSYNC           ; 3 =  5
 ;---------------------------------------
 ; |PF0 |  PF1   |  PF2   |PF0 |  PF1   |  PF2   |
@@ -1020,7 +1026,7 @@ _qrDrawCode
 ;---------------------------------------
     bne     .waitBtm
 
-    ECHO    "  QR Code PF kernel:", [. - _qrDrawCode]d, "bytes"
+    QR_ECHO "  QR Code PF kernel:", [. - _qrDrawCode]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrDrawCode
   ENDIF ; /!QR_SPRITE_GFX
  ENDM ; /QR_DRAW_CODE
@@ -1206,6 +1212,6 @@ _qrFuncData ; for 25 pixel
     _QR_FUNC_GFX %10101000, %00100100
   ENDIF
 
-    ECHO    "  QR Code function modules data:", [. - _qrFuncData]d, "bytes"
+    QR_ECHO "  QR Code function modules data:", [. - _qrFuncData]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrFuncData
   ENDM  ;/QR_DRAW_DATA
