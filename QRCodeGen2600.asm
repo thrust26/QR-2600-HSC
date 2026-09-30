@@ -146,7 +146,7 @@ qrMsgTmp    = qrMsgTmpVars + 3      ; 6 bytes
 qrCrc8      = qrMsgTmp+4
 qrUrlPos    = qrMsgTmp+5
 
-qrTmpVars   = grp0RLst + QR_SIZE - 6 ; overlaps with top right eye
+qrTmpVars   = grp0RLst + QR_SIZE - 5 ; overlaps with top right eye
 ;- - - - - - - - - - - - - - - - - - - -
 ; The QR draw data overlaps the QR code data! It overwrites the QR code data
 ; while being drawn.
@@ -253,24 +253,19 @@ TIM_RM_S
     eor     qrRemainder + QR_DEGREE - 1
     sta     .factor
 ;   memmove(&qrRemainder[1], &qrRemainder[0], (size_t)(16 - 1) * sizeof(qrRemainder[0]));
-    ldx     #QR_DEGREE-1
-.loopMove
-    lda     qrRemainder-1,x
-    sta     qrRemainder,x
-    dex
-    bne     .loopMove
-;   qrRemainder[0] = 0;
-    stx     qrRemainder
 ;   for (int j = 16-1; j >= 0; j--)
     ldx     #QR_DEGREE-1
 .loopJ
 ;     qrRemainder[j] ^= reedSolomonMultiply(generator[j], factor);
     lda     QR_Generator,x
     _RS_MULT
-    eor     qrRemainder,x
-    sta     qrRemainder,x
-;   }
     dex
+    bmi     .skip0
+    eor     qrRemainder,x
+.skip0
+    sta     qrRemainder+1,x     ; last byte uses RAM mirror address
+;   }
+    txa
     bpl     .loopJ
 ; }
     ldx     .i
@@ -491,17 +486,16 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrBitMapCode
 ;-----------------------------------------------------------
 TIM_DF_S
 ; Draws all function, alignment, timing and mask pattern over existing codewords
+; clear horizontal timing byte:
+    ldy     #0
+    sty     qrCodeLst + NUM_FIRST + QR_SIZE*2-1 - 6
     ldx     #_QR_CODE_LST_SIZE-1
 .loopEor
     lda     qrCodeLst,x
-; clear horizontal timing byte:
-    cpx     #NUM_FIRST + QR_SIZE*2-1-6
-    beq     .clearByte
 ; clear top right eye:
-    cpx     #NUM_FIRST + QR_SIZE*3-1-8
+    cpx     #NUM_FIRST + QR_SIZE*3-1 - 8
     bcc     .skipOra
-.clearByte
-    lda     #$00            ; clear top, right "eye" (no cleared by message data)
+    tya                     ; clear top, right "eye" (not cleared by message data)
 .skipOra
     eor     _QrFuncData,x   ; apply function, alignment, timing and mask pattern
     sta     qrCodeLst,x

@@ -341,3 +341,7 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrMessageCode
     QR_ECHO ""
     QR_ECHO "  QR Code Version", [QR_VERSION]d, ", Level", [QR_LEVEL]d, ", Degree", [QR_DEGREE]d, ", Mode", [QR_MODE]d, "(Alphanumeric) -> Capacity", [QR_CAPACITY_BITS]d, "bits"
     QR_ECHO "    -> Message Space:", [QR_MAX_MSG]d, "bytes (", [QR_MSG_LEN]d, "used )"
+  IF QR_PADDING
+    QR_ECHO ""
+    QR_ECHO "  *** QR Code padding enabled ***"
+  ENDIF
