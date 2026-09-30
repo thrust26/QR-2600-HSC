@@ -116,10 +116,10 @@ _QR_TOTAL SET 0         ; ROM bytes used counter
 ; Memory Layout (data overlapping):
 ;           1         2         3         4         5         6         7
 ; 01234567890123456789012345678901234567890123456789012345678901234567890123456789
-; rrrrrrrrrrrrrrrrmmmmmmmmmmmmmmmmmmmmmmmmmmmmttttttttt
-;     QqqqqqqqqqqqqqqqqqqqqqqqqQQqqqqqqqqqqqqqqqqqqqqqqqqQqqqqqqqqqqqqqqqqqqqqqqqq
-; ttt                                                                       tttttt
-; (r=remainder, m=message, t=msg tmp, q=QR code, t=draw/qr tmps)
+; rrrrrrrrrrrrrrrrmmmmmmmmmmmmmmMMMMMMMMMMMMMMttttttttt
+;     qqqqqqqqqqqqqqqqqqqqqqqqqQqqqqqqqqqqqqqqqqqqqqqqqqqQQQQQQQQQQQQQQQQQQQQQQQQQ
+; TTT                                                                       tttttt
+; (r=remainder, m/M=message, t=msg tmp, q/Q=QR code, T/t=draw/qr tmps)
 
 ; Capacities:
 ; first column:   8 bits =  1     byte  (8 * 1)
@@ -131,12 +131,12 @@ _QR_TOTAL SET 0         ; ROM bytes used counter
 
 ;---------------------------------------
 ; QR code variables
-; all byte counts based on version 2, level M QR code
+; all byte counts based on version 2, level L/M QR code
 
 ; input data (remainder and message):
-qrData      ds QR_TOTAL             ; 44 bytes
-qrRemainder = qrData                ; (QR_DEGREE = e.g. 16 bytes)
-qrMsgData   = qrData + QR_DEGREE    ; (QR_MAX_DATA = e.g. 28 bytes)
+qrData      ds QR_TOTAL             ; input data (38/44 bytes, L/M)
+qrRemainder = qrData                ; (QR_DEGREE, 10/16 bytes)
+qrMsgData   = qrData + QR_DEGREE    ; (QR_MAX_DATA = 34/28 bytes)
 ; used during add message only:
 qrMsgTmpVars= qrData + QR_TOTAL
 qrInputIdx  = qrMsgTmpVars          ; ZP-RAM!
@@ -279,44 +279,6 @@ TIM_RM_S
 TIM_RM_E
   ENDM ; /_RS_REMAINDER
 
-; Atari 2600 data overlapping specific macros
-;;-----------------------------------------------------------
-;  MAC _CLEAR_LEFT
-;;-----------------------------------------------------------
-;; Clears left sprite column (except for bottom "eye"); also clears firstMsl!
-;    ldx     #NUM_FIRST + QR_SIZE-1-8
-;    lda     #0
-;.loopClearLeft
-;    sta     qrCodeLst+8,x       ; keep first 8 bytes, used for overlapping
-;;    sta     grp0LLst+8,x
-;    dex
-;    bpl     .loopClearLeft
-;  ENDM
-;
-;;-----------------------------------------------------------
-;  MAC _CLEAR_MIDDLE
-;;-----------------------------------------------------------
-;; Clears middle sprite column
-;    ldx     #QR_SIZE-1
-;    lda     #0
-;.loopClearMiddle
-;    sta     grp1Lst,x
-;    dex
-;    bpl     .loopClearMiddle
-;  ENDM
-;
-;;-----------------------------------------------------------
-;  MAC _CLEAR_RIGHT
-;;-----------------------------------------------------------
-;; Clears right sprite column
-;    ldx     #QR_SIZE-1
-;    lda     #0
-;.loopClearRight
-;    sta     grp0RLst,x
-;    dex
-;    bpl     .loopClearRight
-;  ENDM
-
 ;-----------------------------------------------------------
 ; Draws the raw codewords (including data and ECC) onto the given QR Code. This requires the initial state of
 ; the QR Code to be black at function modules and white at codeword modules (including unused remainder bits).
@@ -324,94 +286,76 @@ TIM_RM_E
 ;-----------------------------------------------------------
 TIM_DC_S
 ; Note: This part has the maximum RAM usage
-.vert   = qrTmpVars+0
-.j      = qrTmpVars+1
+.row    = qrTmpVars+0
+.column = qrTmpVars+1
 .y      = qrTmpVars+2
 .iByte  = qrTmpVars+3       ; ZP-RAM!
 .iBit   = qrTmpVars+4       ; ZP-RAM!
-.right1 = qrTmpVars+5
 
-; blacken the (right) function modules in the bitmap
-;    _CLEAR_RIGHT        ; returns with X = -1
-    ldx     #-1
 ; int i = 0;  // Bit index into the data
-; 2600 code has data in reversed order
-    stx     .iBit           ; X = $ff
+; Note: 2600 code has data in reversed order
+    lda     #$ff
+    sta     .iBit           ; reset bit index
     lda     #QR_TOTAL-1
     sta     .iByte
 ; // Do the funny zigzag scan
-; Note: 2600 code has .right1 increased by 1
-; for (int right = qrsize - 1; right >= 1; right -= 2) {  // Index of right column in each column pair
-    ldy     #QR_SIZE-1+1
-.loopRight
-;  if (right == 6)
+; Note: 2600 code has .column increased by 1 (for easier up/down calculation)
+; for (int column = qrsize - 1; column >= 1; column -= 2) {  // Index of right column in each column pair
+    ldy     #QR_SIZE-1+1    ; = 25
+.loopColumns
+;  if (column == 6)
     cpy     #6+1
-    bne     .not6
-;    right = 5;
-    dey                 ; skip the vertical timing column
-.not6
-    sty     .right1
-;; overwrite shared data
-;    cpy     #8*2+1
-;    bne     .skipBlackMiddle
-;; blacken the middle function modules in the bitmap
-;    _CLEAR_MIDDLE
-;.skipBlackMiddle
-;    cpy     #8+1
-;    bne     .skipBlackLeft
-;; blacken the left function modules in the bitmap
-;    _CLEAR_LEFT
-;.skipBlackLeft ;
-;   for (int vert = 0; vert < qrsize; vert++) {  // Vertical counter
-    ldy     #QR_SIZE-1
-.loopVert
-    sty     .vert
-;       bool upward = ((right + 1) & 2) != 0; // 2600 code works in reverse
-    lda     .right1
-    and     #$02        ; TODO: LSR, LSR; defines carry
-    bne     .notUp
-;       int y = upward ? qrsize - 1 - vert : vert;  // Actual y coordinate
-    lda     #QR_SIZE-1;+1
-    sec
-    sbc     .vert
-    tay
+    bne     .notColumn6
+;    column = 5;
+    dey                     ; skip the vertical timing column
+.notColumn6
+    sty     .column
+;   for (int row = 0; row < qrsize; row++) {  // Vertical counter
+    ldx     #QR_SIZE-1
+.loopRows
+    stx     .row
+;       bool upward = ((column + 1) & 2) != 0; // 2600 code works in reverse
+    lda     .column
+    lsr
+    lsr                     ; defines carry
+    bcs     .notUp
+;       int y = upward ? qrsize - 1 - row : row;  // Actual y coordinate
+    lda     #QR_SIZE-1+1
+    sbc     .row            ; C == 0!
+    tax
 .notUp
-    sty     .y
+    stx     .y
 ;     for (int j = 0; j < 2; j++) {
 ; some tricky code with .j here
-    ldy     .right1
+    ldy     .column
     BIT_B
 .loopJ
     dey
-    sty     .j
-;       int x = right - j;  // Actual x coordinate
-    dey
+;       int x = column - j;  // Actual x coordinate
+    dey                     ; Y = column - 1 or 2
 ;       if (!getModule(qrcode, x, y) && i < dataLen * 8) {
 ;    ldy     .x
-    ldx     .y
+;    ldx     .y
     jsr     _QrCheckPixel
     bcs     .skipPixel
 ; clear column bytes on demand:
     tya
     eor     #QR_SIZE-1
     bne     .skipClearRight
-    sta     grp0RLst,x
+    sta     grp0RLst,x     ; A = 0
 .skipClearRight
     eor     #(QR_SIZE-1-8)^(QR_SIZE-1)      ; = $08
     bne     .skipClearMiddle
-    sta     grp1Lst,x
+    sta     grp1Lst,x      ; A = 0
 .skipClearMiddle
-;    eor     #(QR_SIZE-1-8*2)^(QR_SIZE-1-8)  ; = $18
-;    bne     .skipClearLeft
-;    sta     grp0LLst,x
-;.skipClearLeft
+; note: left already fully cleared by asl qrData,x
 ;         bool black = getBit(qrData[i >> 3], 7 - (i & 7));
     ldx     .iByte
     asl     qrData,x       ; this also partially clears the draw data
+    ldx     .y
     bcc     .skipInv
 ;         setModule(qrcode, x, y, black);
 ;    ldy     .x
-    ldx     .y
     jsr     _QrInvertPixel
 .skipInv
 ;         i++;
@@ -423,19 +367,18 @@ TIM_DC_S
 .skipByte
 ;       }
 .skipPixel
-    ldy     .j
-    cpy     .right1
+    iny                     ; left/right zigzag
+    cpy     .column
     beq     .loopJ
 ;     } // for j
-    ldy     .vert
-    dey
-    bpl     .loopVert
-;   } // for vert
-    ldy     .right1
-    dey
-    dey
-    bpl     .loopRight      ; unconditional!
-; } // for right
+    ldx     .row            ; up/down zigzag
+    dex
+    bpl     .loopRows
+;   } // for row
+; go to next two columns:
+    dey                     ; -> .column - 2
+    bpl     .loopColumns    ; unconditional!
+; } // for column
 
 .exitDraw
 TIM_DC_E

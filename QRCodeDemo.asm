@@ -288,7 +288,7 @@ _qrMessageCode
 ; add stage:
     lda     stage
     jsr     QrAddMsg
-; H.FIRMAPLUS.DE/Q3915F7AA24DE6A5C
+; H.FIRMAPLUS.DE/Q3915F7AA24DE5C
 
 ; H.FIRMAPLUS.DE/Q3915F7AA24DE6A3F4158BA
 ;    lda     #$6a
