@@ -178,10 +178,6 @@ qrDispVars  = qrData  ; 3 bytes (overlaps with qrRemainder)
 ; Q R   C O D E   M A C R O S
 ;===============================================================================
 
-  MAC BIT_B     ; skip 1 byte, 3 cycles
-    .byte   $24
-  ENDM
-
   MAC BIT_W     ; skip 2 bytes, 4 cycles
     .byte   $2c
   ENDM
@@ -330,17 +326,17 @@ TIM_DC_S
 ;       if (!getModule(qrcode, x, y) && i < dataLen * 8) {
 ;    ldy     .x
 ;    ldx     .y
-    jsr     _QrCheckPixel
-    bcs     .skipPixel
+    jsr     _QrCheckPixel   ; check if pixel belongs to function data
+    bcs     .skipPixel      ;  yes, skip
 ; clear column bytes on demand:
     tya
     eor     #QR_SIZE-1
     bne     .skipClearRight
-    sta     grp0RLst,x     ; A = 0
+    sta     grp0RLst,x      ; A = 0
 .skipClearRight
     eor     #(QR_SIZE-1-8)^(QR_SIZE-1)      ; = $08
     bne     .skipClearMiddle
-    sta     grp1Lst,x      ; A = 0
+    sta     grp1Lst,x       ; A = 0
 .skipClearMiddle
 ; Note: left already fully cleared by asl qrData,x
 ;         bool black = getBit(qrData[i >> 3], 7 - (i & 7));
@@ -786,8 +782,6 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrCodeData
 ; Display: M1, P0a, P1, P0b (25 pixel)
 _QR_BLOCK_H = 2     ; QR code pixel height
 .tmpFirst   = qrDispVars    ; leftmost pixel column (-> M1), ZP-RAM!
-.tmpFirst1  = qrDispVars+1  ; ZP-RAM!
-.tmpFirst2  = qrDispVars+2  ; ZP-RAM!
 
 _qrDrawCode
     ldx     #QR_FORE_COL    ; black QR code...
@@ -823,14 +817,6 @@ _qrDrawCode
 
     lda     #%01111111      ;           = $7f
     sta     .tmpFirst
-    lda     firstMsl
-    sec                     ;           top eye, 1st format bit is 1
-    rol
-    sta     .tmpFirst1
-    lda     #%01111110      ;           = $7e
-    rol                     ;           = %1111110x
-    sta     .tmpFirst2
-
 ; QR code display kernel:
     ldx     #QR_SIZE-1
 .loopQrKernel               ;           @70*
@@ -839,6 +825,21 @@ _qrDrawCode
     sta     WSYNC           ; 3 = 3     @75*
 ;---------------------------------------
 ;M1-P0-P1-P0
+    cpx     #15             ; 2
+    bne     .notMidFirst    ; 3/2
+    lda     firstMsl        ; 3
+    bcs     .setTmpFirst    ; 3 = 10
+
+.skipSetFirst               ;10
+    bne     .contKernel     ; 3
+
+.notMidFirst                ; 5
+    cpx     #7              ; 2
+    bne     .skipSetFirst   ; 3/2
+    lda     #$fe            ; 2 = 11
+.setTmpFirst
+    sta     .tmpFirst       ; 3 = 3
+.contKernel                 ;           @13/14
     lda     .tmpFirst       ; 3
     asl                     ; 2
     sta     ENAM1           ; 3 =  8
@@ -846,25 +847,18 @@ _qrDrawCode
     sta     GRP1            ; 3
     lda     grp0LLst,x      ; 4
     sta     GRP0            ; 3 = 14
-    php                     ; 3         waste 14 cycles
-    plp                     ; 4
-    php                     ; 3
-    plp                     ; 4
-    sec                     ; 2 = 16    needed for 1st ror (25th bit)
+    sec                     ; 2         needed for 1st ror (25th bit)
     lda     grp0RLst,x      ; 4
+    nop                     ; 2
     dey                     ; 2
-    sta.w   GRP0            ; 4 = 10    @48
+    sta     GRP0            ; 3 = 13    @48/49
     bne     .loopBlock      ; 2/3
-    ror     .tmpFirst2      ; 5         shift bits into .tmpFirst
-    ror     .tmpFirst1      ; 5
-    ror     .tmpFirst       ; 5 = 15
+    ror     .tmpFirst       ; 5
     dex                     ; 2
-    bpl     .loopQrKernel   ; 3/2=7/6   @70/69*
-    sty     ENAM1
-    sty     GRP1
-;---------------------------------------
-    sty     GRP0
-
+    bpl     .loopQrKernel   ; 3/2=12/11 @60/59*
+    sty     ENAM1           ; 3
+    sty     GRP1            ; 3
+    sty     GRP0            ; 3
     ldx     #{2}
 .loopWaitBtm
     sta     WSYNC

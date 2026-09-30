@@ -46,13 +46,13 @@ QR_BACK_COL     = $0e   ; white
 QR_FORE_COL     = $80   ; black
 ; Note: other color combinations work too, as long as the contrast is high enough
 
-QR_SPRITE_GFX   = 0 ; (-30 bytes) display playfield(0) or sprite graphics(1)
+QR_SPRITE_GFX   = 1 ; (-30 bytes) display playfield(0) or sprite graphics(1)
 ; Sprite graphics are small, but sufficient. And allow to display your own
 ; graphics above and below.
 ; Note: Step away from the display if your QR code reader has problems.
 
 ; define message payload size:
-QR_MSG_LEN      = 1 + 3 + 1 + 1;+4;+4; PlusROM game ID, 3 x score, stage, variation
+QR_MSG_LEN      = 1 + SCORE_BYTES + 1 + 1;+4;+4; PlusROM game ID, 3 x score, stage, variation
 ; Note: An optional, short user id is planned. This will be mapped to an
 ; existing, long id. So that no further input is quired on the website.
 ; The user id would be entered inside the game then. There it could be stored
@@ -207,7 +207,7 @@ _EXTRA_LINES    = 4         ; PF display needs some extra lines for a nice gap
 
 ; make sure there is a litte gap above and below the QR code!
   IF QR_SPRITE_GFX
-    QR_DRAW_CODE 69, 70     ; gaps above and below QR code
+    QR_DRAW_CODE 70, 70     ; gaps above and below QR code
 ; Note: you can draw your own graphics above and below (or besides)
   ELSE
     QR_DRAW_CODE 11, 11     ; gaps above and below QR code
