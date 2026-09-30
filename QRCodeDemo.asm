@@ -62,7 +62,7 @@ QR_MSG_LEN      = 1 + 3 + 1 + 1;+4;+4; PlusROM game ID, 3 x score, stage, variat
 ; Enable this if your payload exceeds the maximum message size. This will weaken
 ; error correction but provide space for 4 extra chars.
 
-QR_PADDING      = 0         ; add padding bytes to fill any space left
+QR_PADDING      = 1         ; add padding bytes to fill any space left
 ; Usually QR reader simply ignore the padding bytes. If you want to be 100%
 ; correct, you can enable this line. This costs 29 extra bytes ROM.
 

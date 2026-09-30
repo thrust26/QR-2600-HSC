@@ -287,8 +287,8 @@ TIM_RM_E
 TIM_DC_S
 ; Note: This part has the maximum RAM usage
 .row    = qrTmpVars+0
-.column = qrTmpVars+1
-.y      = qrTmpVars+2
+.column = qrTmpVars+1       ; current column - 1
+.y      = qrTmpVars+2       ; current column - 0/1
 .iByte  = qrTmpVars+3       ; ZP-RAM!
 .iBit   = qrTmpVars+4       ; ZP-RAM!
 
@@ -299,40 +299,39 @@ TIM_DC_S
     lda     #QR_TOTAL-1
     sta     .iByte
 ; // Do the funny zigzag scan
-; Note: 2600 code has .column increased by 1 (for easier up/down calculation)
+; Note: 2600 code has .column decreased by 1 (for easier up/down calculation)
 ; for (int column = qrsize - 1; column >= 1; column -= 2) {  // Index of right column in each column pair
-    ldy     #QR_SIZE-1+1    ; = 25
+    ldy     #QR_SIZE-1-1    ; = 23
 .loopColumns
 ;  if (column == 6)
-    cpy     #6+1
+    cpy     #6-1
     bne     .notColumn6
 ;    column = 5;
     dey                     ; skip the vertical timing column
 .notColumn6
     sty     .column
+
 ;   for (int row = 0; row < qrsize; row++) {  // Vertical counter
     ldx     #QR_SIZE-1
 .loopRows
     stx     .row
 ;       bool upward = ((column + 1) & 2) != 0; // 2600 code works in reverse
-    lda     .column
+    lda     .column         ; this is tricky due to skipped vertical timing column
     lsr
     lsr                     ; defines carry
-    bcs     .notUp
+    bcc     .notUp
 ;       int y = upward ? qrsize - 1 - row : row;  // Actual y coordinate
-    lda     #QR_SIZE-1+1
-    sbc     .row            ; C == 0!
+    lda     #QR_SIZE-1
+    sbc     .row            ; C == 1!
     tax
 .notUp
     stx     .y
 ;     for (int j = 0; j < 2; j++) {
-; some tricky code with .j here
+; some tricky code with column here:
     ldy     .column
-    BIT_B
+    iny                     ; Y = column - 0 or 1
 .loopJ
-    dey
 ;       int x = column - j;  // Actual x coordinate
-    dey                     ; Y = column - 1 or 2
 ;       if (!getModule(qrcode, x, y) && i < dataLen * 8) {
 ;    ldy     .x
 ;    ldx     .y
@@ -348,7 +347,7 @@ TIM_DC_S
     bne     .skipClearMiddle
     sta     grp1Lst,x      ; A = 0
 .skipClearMiddle
-; note: left already fully cleared by asl qrData,x
+; Note: left already fully cleared by asl qrData,x
 ;         bool black = getBit(qrData[i >> 3], 7 - (i & 7));
     ldx     .iByte
     asl     qrData,x       ; this also partially clears the draw data
@@ -367,7 +366,7 @@ TIM_DC_S
 .skipByte
 ;       }
 .skipPixel
-    iny                     ; left/right zigzag
+    dey                     ; left/right zigzag
     cpy     .column
     beq     .loopJ
 ;     } // for j
