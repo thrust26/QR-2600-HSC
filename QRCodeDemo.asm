@@ -46,7 +46,7 @@ QR_BACK_COL     = $0e   ; white
 QR_FORE_COL     = $80   ; black
 ; Note: other color combinations work too, as long as the contrast is high enough
 
-QR_SPRITE_GFX   = 1 ; (-30 bytes) display playfield(0) or sprite graphics(1)
+QR_SPRITE_GFX   = 0 ; (-30 bytes) display playfield(0) or sprite graphics(1)
 ; Sprite graphics are small, but sufficient. And allow to display your own
 ; graphics above and below.
 ; Note: Step away from the display if your QR code reader has problems.

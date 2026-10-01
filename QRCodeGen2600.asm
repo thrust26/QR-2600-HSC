@@ -873,8 +873,6 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrDrawCode
 
 _QR_BLOCK_H = 7
 .tmpFirst   = qrDispVars    ; leftmost pixel column (-> M1), ZP-RAM!
-.tmpFirst1  = qrDispVars+1  ; ZP-RAM!
-.tmpFirst2  = qrDispVars+2  ; ZP-RAM!
 
 _qrDrawCode
 ; |PF0 |  PF1   |  PF2   |  PF2   |  PF1   |PF0 |
@@ -899,55 +897,61 @@ _qrDrawCode
 
     lda     #%01111111      ;           = $7f
     sta     .tmpFirst
-    lda     firstMsl
-    sec                     ;           top eye, 1st format bit is 1
-    rol
-    sta     .tmpFirst1
-    lda     #%01111110      ;           = $7e
-    rol                     ;           = %1111110x
-    sta     .tmpFirst2
 ; QR code display kernel:
     ldx     #QR_SIZE-1
-    bne     .loopQrKernel
-
-; QR code display kernel:
-.loopBlock
-    nop                     ; 2
-    lda     #0              ; 2
-    sta     PF2             ; 3         @43/44
-    sta     PF0             ; 3         @46/47
-    BIT_W                   ; 2 = 12
-.loopQrKernel               ;           @68/69
+.loopQrKernel               ;           @60
     ldy     #_QR_BLOCK_H    ; 2
-    sta     WSYNC           ; 3 =  5
+
+    cpx     #15             ; 2
+    bne     .notMidFirst    ; 3/2
+    lda.w   firstMsl        ; 4
+    bcs     .setTmpFirst    ; 3 = 11
+
+.notMidFirst                ; 5
+    cpx     #7              ; 2
+    bne     .contKernel     ; 3/2
+    lda     #%11111110      ; 2 = 11    = $fe
+.setTmpFirst
+    sta     .tmpFirst       ; 3 =  3    @76!
 ;---------------------------------------
+    bcs     .contKernel1    ; 3         @03!
+
 ; |PF0 |  PF1   |  PF2   |PF0 |  PF1   |  PF2   |
 ; |    |7......0|0......7|4..7|7......0|        |
 ; |....|...XXXXX|XXXXXXXX|XXXX|XXXXXXXX|........|
-    lda     .tmpFirst       ; 3
+.loopBlock                  ;           @45
+    lda     #0              ; 2
+    sta     PF2             ; 3         @50
+    sta     PF0             ; 3         @53
+.contKernel
+    sta     WSYNC
+;---------------------------------------
+    lda     .tmpFirst       ; 3 =  3
+.contKernel1                ;           @03
     lsr                     ; 2
     lda     .pf0R1LLst,x    ; 4
     and     #%1111          ; 2
-    bcc     .clear          ; 2/3
+    bcs     .setFirst       ; 2/3
+    bcc     .clearFirst     ; 3
+
+.setFirst
     ora     #%10000         ; 2         CF needed for 1st ror
-.clear                      ;   = 14/15
-    sta     PF1             ; 3         @17/18
+.clearFirst
+    sta     PF1             ; 3 = 16    @19
     lda     .pf2LLst,x      ; 4
-    sta     PF2             ; 3 = 10    @24/25
+    sta     PF2             ; 3         @26
     lda     .pf0R1LLst,x    ; 4
-    sta     PF0             ; 3         @31/32  >=27
+    sta     PF0             ; 3         @33     >=27
     lda     .pf1RLst,x      ; 4
-    sta     PF1             ; 3 = 14    @38/39  >=38
+    sta     PF1             ; 3 = 21    @40     >=38
     dey                     ; 2
-    bne     .loopBlock      ; 3/2= 5/4  @43/44
-    ror     .tmpFirst2      ; 5         shift bits into .tmpFirst
-    ror     .tmpFirst1      ; 5
+    bne     .loopBlock      ; 3/2= 5/4  @44/45
     ror     .tmpFirst       ; 5
-    sty     PF2             ; 3
-    sty     PF0             ; 3 = 21    @63/64
     dex                     ; 2
-    bpl     .loopQrKernel   ; 3/2= 5/4  @68/69
-    sty     PF1             ;           @71
+    sty     PF2             ; 3
+    sty     PF0             ; 3 = 13    @57
+    bpl     .loopQrKernel   ; 3/2= 3/2  @60
+    sty     PF1             ; 3         @62
 
     ldx     #{2}
 .waitBtm
@@ -955,6 +959,7 @@ _qrDrawCode
     sta     WSYNC
 ;---------------------------------------
     bne     .waitBtm
+; was 733 now 735
 
     QR_ECHO "  QR Code PF kernel:", [. - _qrDrawCode]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrDrawCode
