@@ -43,15 +43,15 @@ SCORE_BYTES     = 3         ; example number
 ;===============================================================================
 
 QR_BACK_COL     = $0e   ; white
-QR_FORE_COL     = $80   ; black
+QR_FORE_COL     = $00   ; black
 ; Note: other color combinations work too, as long as the contrast is high enough
 
-QR_SPRITE_GFX   = 0 ; (-30 bytes) display playfield(0) or sprite graphics(1)
+QR_SPRITE_GFX   = 0 ; (-33 bytes) display playfield(0) or sprite graphics(1)
 ; Sprite graphics are small, but sufficient. And allow to display your own
 ; graphics above and below.
-; Note: Step away from the display if your QR code reader has problems.
+; Note: Step AWAY from the display if your QR code reader has problems.
 
-; define message payload size:
+; define message payload size [bytes]:
 QR_MSG_LEN      = 1 + SCORE_BYTES + 1 + 1;+4;+4; PlusROM game ID, 3 x score, stage, variation
 ; Note: An optional, short user id is planned. This will be mapped to an
 ; existing, long id. So that no further input is quired on the website.
@@ -65,6 +65,11 @@ QR_MSG_LEN      = 1 + SCORE_BYTES + 1 + 1;+4;+4; PlusROM game ID, 3 x score, sta
 QR_PADDING      = 1         ; add padding bytes to fill any space left
 ; Usually QR reader simply ignore the padding bytes. If you want to be 100%
 ; correct, you can enable this line. This costs 29 extra bytes ROM.
+
+;QR_NON_OVER     = 3         ; 1..3, default is 4
+; Warning: Enable this line only, when you are short on RAM by 1 to 3 bytes! The
+; resulting QR code will not be 100% correct anymore and detection relies on
+; error correction!
 
 QR_ECHO_ON      = 1 ; 1 = echo some debug output to console
 ; Enable line for some debug output
@@ -130,18 +135,7 @@ Start SUBROUTINE
     bpl     .loopClear
     txs
 
- ; define demo "game results":
-;    lda     #$14
-;    sta     variation
-;    lda     #$12
-;    sta     scoreHi
-;    lda     #$34
-;    sta     scoreMid
-;    lda     #$56
-;    sta     scoreLo
-;    lda     #$23
-;    sta     stage
-
+; define demo "game results":
     lda     #$15
     sta     variation
     lda     #$F7
@@ -210,7 +204,7 @@ _EXTRA_LINES    = 4         ; PF display needs some extra lines for a nice gap
     QR_DRAW_CODE 70, 70     ; gaps above and below QR code
 ; Note: you can draw your own graphics above and below (or besides)
   ELSE
-    QR_DRAW_CODE 11, 11     ; gaps above and below QR code
+    QR_DRAW_CODE 11, 12     ; gaps above and below QR code
   ENDIF
 
     lda     #2
@@ -269,7 +263,7 @@ _qrMessageCode
 ; add the payload bytes (as defined for PlusROM HSC):
 .scoreIdx   = tmpVars
 
-; Note: add the values in the same order as if sending them directly to the HSC
+; Note: Enter the values in the same order as if you were sending them directly to the HSC
 ; add PlusROM game ID:
     lda     #PLUSROM_ID
     jsr     QrAddMsg
@@ -290,7 +284,9 @@ _qrMessageCode
     jsr     QrAddMsg
 ; H.FIRMAPLUS.DE/Q3915F7AA24DE5C
 
-; H.FIRMAPLUS.DE/Q3915F7AA24DE6A3F4158BA
+; test data:
+
+;; H.FIRMAPLUS.DE/Q3915F7AA24DE6A3F4158BA
 ;    lda     #$6a
 ;    jsr     QrAddMsg
 ;    lda     #$3F
@@ -340,7 +336,7 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrMessageCode
     QR_ECHO "  QR Code total:", [_QR_TOTAL]d, "bytes ROM,", [_QR_RAM]d, "bytes RAM"
     QR_ECHO ""
     QR_ECHO "  QR Code Version", [QR_VERSION]d, ", Level", [QR_LEVEL]d, ", Degree", [QR_DEGREE]d, ", Mode", [QR_MODE]d, "(Alphanumeric) -> Capacity", [QR_CAPACITY_BITS]d, "bits"
-    QR_ECHO "    -> Message Space:", [QR_MAX_MSG]d, "bytes (", [QR_MSG_LEN]d, "used )"
+    QR_ECHO "    -> Message Space:", [QR_MAX_MSG]d, "bytes /", [QR_MAX_MSG*2]d, "chars (", [QR_MSG_LEN]d, "/", [QR_MSG_LEN*2]d, "used )"
   IF QR_PADDING
     QR_ECHO ""
     QR_ECHO "  *** QR Code padding enabled ***"

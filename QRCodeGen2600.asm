@@ -118,7 +118,7 @@ _QR_TOTAL SET 0         ; ROM bytes used counter
 ; 01234567890123456789012345678901234567890123456789012345678901234567890123456789
 ; rrrrrrrrrrrrrrrrmmmmmmmmmmmmmmMMMMMMMMMMMMMMttttttttt
 ;     qqqqqqqqqqqqqqqqqqqqqqqqqQqqqqqqqqqqqqqqqqqqqqqqqqqQQQQQQQQQQQQQQQQQQQQQQQQQ
-; TTT                                                                       tttttt
+; T                                                                         tttttt
 ; (r=remainder, m/M=message, t=msg tmp, q/Q=QR code, T/t=draw/qr tmps)
 
 ; Capacities:
@@ -146,11 +146,13 @@ qrMsgTmp    = qrMsgTmpVars + 3      ; 6 bytes
 qrCrc8      = qrMsgTmp+4
 qrUrlPos    = qrMsgTmp+5
 
-qrTmpVars   = grp0RLst + QR_SIZE - 5 ; overlaps with top right eye
+qrTmpVars   = grp0RLst + QR_SIZE - 9 ; overlaps with top right eye
 ;- - - - - - - - - - - - - - - - - - - -
 ; The QR draw data overlaps the QR code data! It overwrites the QR code data
 ; while being drawn.
-QR_NON_OVER = 4
+  IFNCONST QR_NON_OVER
+QR_NON_OVER = 4 ; Note: can be reduced down to 1, but then relies on error correction
+  ENDIF
 ; generated QR code data, used for drawing (76 bytes needed):
 qrCodeLst   = qrData + QR_NON_OVER  ; all but 4 bytes overlap (version 2 only!)
             ds NUM_FIRST + QR_SIZE*3 - QR_TOTAL + QR_NON_OVER   ; 36 bytes
@@ -168,7 +170,7 @@ _QR_RAM             = . - qrRamStart
 grp0LLst    = qrCodeLst + QR_SIZE * 0
 firstMsl    = qrCodeLst + QR_SIZE * 1
 grp1Lst     = qrCodeLst + NUM_FIRST + QR_SIZE * 1
-grp0RLst    = qrCodeLst + NUM_FIRST + QR_SIZE * 2
+grp0RLst    = qrCodeLst + NUM_FIRST + QR_SIZE * 2   ; note: this could be an extra RAM area
 ;- - - - - - - - - - - - - - - - - - - -
 ; used during drawing only:
 qrDispVars  = qrData  ; 3 bytes (overlaps with qrRemainder)
@@ -873,20 +875,17 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrDrawCode
 
 _QR_BLOCK_H = 7
 .tmpFirst   = qrDispVars    ; leftmost pixel column (-> M1), ZP-RAM!
-
-_qrDrawCode
-; |PF0 |  PF1   |  PF2   |  PF2   |  PF1   |PF0 |
-; |....|...xxxxx|xxxxxxxx|xxxxxxxx|xxxx....|....|
 .pf0R1LLst  = grp0LLst
 .pf2LLst    = grp1Lst
 .pf1RLst    = grp0RLst
 
+_qrDrawCode
     lda     #QR_FORE_COL    ; black QR code...
     sta     COLUPF
     lda     #QR_BACK_COL    ; ...on white background
     sta     COLUBK
 
-; some vertical centering
+; some vertical centering:
     ldx     #{1}            ; (200 - QR_SIZE * _QR_BLOCK_H) / 2
 .waitTop
     dex
@@ -923,7 +922,7 @@ _qrDrawCode
     lda     #0              ; 2
     sta     PF2             ; 3         @50
     sta     PF0             ; 3         @53
-.contKernel
+.contKernel                 ;           @72
     sta     WSYNC
 ;---------------------------------------
     lda     .tmpFirst       ; 3 =  3
@@ -946,7 +945,7 @@ _qrDrawCode
     sta     PF1             ; 3 = 21    @40     >=38
     dey                     ; 2
     bne     .loopBlock      ; 3/2= 5/4  @44/45
-    ror     .tmpFirst       ; 5
+    ror     .tmpFirst       ; 5         ROR required for 25th bit
     dex                     ; 2
     sty     PF2             ; 3
     sty     PF0             ; 3 = 13    @57
@@ -959,7 +958,7 @@ _qrDrawCode
     sta     WSYNC
 ;---------------------------------------
     bne     .waitBtm
-; was 733 now 735
+; (was 733 now 735)
 
     QR_ECHO "  QR Code PF kernel:", [. - _qrDrawCode]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrDrawCode
