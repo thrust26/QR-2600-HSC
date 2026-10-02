@@ -4,14 +4,14 @@
 ; This demo shows, how to use the QR code generation library for displaying
 ; high score QR codes. These can be scanned with your smartphone (most cameras
 ; support them natively) and then send to the PlusROM High Score Club.
-; This allows adding high scores without using a PlusCart or emulator.
+; This allows adding high scores without using a PlusCart or an emulator.
 
 ; *** General Use ***
 ; There are only a few DASM macros you have to use:
 ;
-; For QR Code generation:
+; For QR Code generation (in that order):
 ; - QR_START_MSG
-; - add payload (using QrAddMsg subroutine for each byte)
+; - add payload message (using QrAddMsg subroutine for each byte)
 ; - QR_GEN_CODE
 ;
 ; For QR Code display:
@@ -22,6 +22,9 @@
 ; - QR_BITMAP_CODE
 ; - QR_DRAW_DATA
 ; - QR_CODE_DATA
+
+; Besides that you must only define QR_MSG_LEN (see below)
+; All other assembler switches can be optionally changed.
 
 
     processor 6502
@@ -44,7 +47,9 @@ SCORE_BYTES     = 3         ; example number
 
 QR_BACK_COL     = $0e   ; white
 QR_FORE_COL     = $00   ; black
-; Note: other color combinations work too, as long as the contrast is high enough
+; Note: Other color combinations work too, as long as the contrast is high enough
+; Usually smartphones are pretty good with low contrasts, but CRT displays may
+; make problems.
 
 QR_SPRITE_GFX   = 0 ; (-33 bytes) display playfield(0) or sprite graphics(1)
 ; Sprite graphics are small, but sufficient. And allow to display your own
@@ -63,15 +68,15 @@ QR_MSG_LEN      = 1 + SCORE_BYTES + 1 + 1;+4;+4; PlusROM game ID, 3 x score, sta
 ; error correction but provide space for 4 extra chars.
 
 QR_PADDING      = 1         ; add padding bytes to fill any space left
-; Usually QR reader simply ignore the padding bytes. If you want to be 100%
+; Usually QR readers simply ignore the padding bytes. If you want to be 100%
 ; correct, you can enable this line. This costs 29 extra bytes ROM.
 
-;QR_NON_OVER     = 3         ; 1..3, default is 4
+;QR_NON_OVER     = 3         ; 1..3 (default 4)
 ; Warning: Enable this line only, when you are short on RAM by 1 to 3 bytes! The
 ; resulting QR code will not be 100% correct anymore and detection relies on
 ; error correction!
 
-QR_ECHO_ON      = 1 ; 1 = echo some debug output to console
+QR_ECHO_ON      = 1         ; 1 = echo some useful debug output to console
 ; Enable line for some debug output
 
 

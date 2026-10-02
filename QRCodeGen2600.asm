@@ -602,17 +602,15 @@ QrAddMsgChar SUBROUTINE
     lda     qrMsgTmp        ; 2nd byte
 ;    clc
     adc     .prodLo
-    sta     .prodLo
+    sta     .prodLo         ; PHA?
     txa                     ; high byte
     adc     #0
 ; store 11 bits:
-    asl
-    asl
-    asl
-    asl
-    asl
+    lsr                     ; 5x ASL alternative
+    ror
+    ror
     ldy     #3              ; 3 bits
-    jsr     _QrAddBits
+    jsr     _QrAddBitsC     ; current carry used!
     lda     .prodLo         ; low byte
 
     ; falls through to next routine
@@ -621,23 +619,24 @@ QrAddMsgChar SUBROUTINE
 ;---------------------------------------------------------------
 _QrAdd8Bits ;SUBROUTINE
 ;---------------------------------------------------------------
-.tmpByte    = qrMsgTmp
+.tmpBits    = qrMsgTmp
 
     ldy     #8              ; 8 bits
 _QrAddBits
 .loopBits
     asl
+_QrAddBitsC
     rol     qrNewByte       ; ZP-RAM!
     bcc     .contByte
 ; byte full, store:
-    sta     .tmpByte
+    sta     .tmpBits        ; PHA?
     lda     qrNewByte
     ldx     qrMsgIdx
     sta     qrMsgData,x
     dec     qrMsgIdx        ; ZP-RAM!
-    lda     #1              ; byte full marker
+    lda     #%1             ; byte full marker
     sta     qrNewByte
-    lda     .tmpByte
+    lda     .tmpBits
 ; loop:
 .contByte
     dey
@@ -763,12 +762,12 @@ _QR_TOTAL_MSG_LEN   = (QR_MSG_LEN * 2) + _QR_URL_LEN + 2   ; include CRC
 ; four initialized variables:
     .byte   0       ; qrInputIdx (only even or odd needed, URL has even length)
   IF QR_LEVEL = QR_LVL_L
-    .byte   $15     ; qrMsgIdx
+    .byte   21      ; qrMsgIdx
   ENDIF
   IF QR_LEVEL = QR_LVL_M
-    .byte   $0f     ; qrMsgIdx
+    .byte   15      ; qrMsgIdx
   ENDIF
-    .byte   $29     ; qrNewByte
+    .byte   $29     ; qrNewByte (%..X01001)
     .byte   0       ; qrCrc8
 _QR_MSG_INIT_LEN    = . - QrMsgInit
 _QR_URL_LEN         = 16
