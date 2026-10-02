@@ -142,9 +142,8 @@ qrMsgTmpVars= qrData + QR_TOTAL
 qrInputIdx  = qrMsgTmpVars          ; ZP-RAM!
 qrMsgIdx    = qrMsgTmpVars + 1      ; ZP-RAM!
 qrNewByte   = qrMsgTmpVars + 2      ; ZP-RAM!
-qrMsgTmp    = qrMsgTmpVars + 3      ; 6 bytes
-qrCrc8      = qrMsgTmp+4
-qrUrlPos    = qrMsgTmp+5
+qrCrc8      = qrMsgTmpVars + 3
+qrMsgTmp    = qrMsgTmpVars + 4      ; 4 bytes
 
 qrTmpVars   = grp0RLst + QR_SIZE - 9 ; overlaps with top right eye
 ;- - - - - - - - - - - - - - - - - - - -
@@ -292,24 +291,27 @@ TIM_DC_S
     lda     #QR_TOTAL-1
     sta     .iByte
 ; // Do the funny zigzag scan
-; Note: 2600 code has .column decreased by 1 (for easier up/down calculation)
 ; for (int column = qrsize - 1; column >= 1; column -= 2) {  // Index of right column in each column pair
+; Note: 2600 code has .column decreased by 1 (for easier up/down calculation)
     ldy     #QR_SIZE-1-1    ; = 23
 .loopColumns
 ;  if (column == 6)
     cpy     #6-1
     bne     .notColumn6
 ;    column = 5;
-    dey                     ; skip the vertical timing column
+    dey                     ; skip the vertical timing column (this requires the tricks with .column)
 .notColumn6
     sty     .column
 
 ;   for (int row = 0; row < qrsize; row++) {  // Vertical counter
     ldx     #QR_SIZE-1
 .loopRows
+; Y = column - 1
     stx     .row
 ;       bool upward = ((column + 1) & 2) != 0; // 2600 code works in reverse
     lda     .column         ; this is tricky due to skipped vertical timing column
+    tay
+
     lsr
     lsr                     ; defines carry
     bcc     .notUp
@@ -321,9 +323,8 @@ TIM_DC_S
     stx     .y
 ;     for (int j = 0; j < 2; j++) {
 ; some tricky code with column here:
-    ldy     .column
-    iny                     ; Y = column - 0 or 1
-.loopJ
+    iny
+.loopJ                      ; Y = column - 0 or 1
 ;       int x = column - j;  // Actual x coordinate
 ;       if (!getModule(qrcode, x, y) && i < dataLen * 8) {
 ;    ldy     .x
@@ -403,16 +404,16 @@ _QrCheckPixel SUBROUTINE
 ; check for top finders pattern:
     cpx     #QR_SIZE-1-8    ; Y < 16?
     bcc     .notTopFinders
-    cpy     #9              ; X < 9? (left top finder)
-    bcc     .full
     cpy     #QR_SIZE-1-7    ; X >= 17? (right top finder)
+    bcc     .notTopRightFinder
     rts
 
 .notTopFinders
 ; check for bottom finder pattern:
     cpx     #8              ; Y >= 8?
     bcs     .notBtmFinder
-    cpy     #9              ; X < 9? (bottom finder)
+.notTopRightFinder
+    cpy     #9              ; X < 9? (left top or bottom finder)
     bcc     .full
 .notBtmFinder
 ; check for alignment pattern:
@@ -512,20 +513,9 @@ TIM_MS_S
     ldx     #_QR_MSG_INIT_LEN
 .loopInit
     lda     QrMsgInit - 1,x
-    sta     qrData + QR_TOTAL - 1 - _QR_MSG_INIT_LEN,x
+    sta     qrData + QR_TOTAL - 1 - _QR_MSG_INIT_LEN + 4,x
     dex
     bne     .loopInit
-    stx     qrCrc8
-    stx     qrInputIdx      ; only even or odd needed (URL has even length)
-   IF QR_LEVEL = QR_LVL_L
-    lda     #$15
-   ENDIF
-   IF QR_LEVEL = QR_LVL_M
-    lda     #$0f
-   ENDIF
-    sta     qrMsgIdx
-    lda     #$29
-    sta     qrNewByte
   ENDM
 
 ;---------------------------------------------------------------
@@ -763,12 +753,23 @@ QR_Generator ; data in reversed order!
 QR_DEGREE = . - QR_Generator  ; verify data size
 
 QrMsgInit
+; alphanumeric encoded data:
     .byte   $fd, $95, $2c, $fa, $bc, $ed, $54, $b3
     .byte   $56, $27
 ; mix mode (4 bits), length (9 bits) and first URL char (3 bits):
 _QR_TOTAL_MSG_LEN   = (QR_MSG_LEN * 2) + _QR_URL_LEN + 2   ; include CRC
     .byte   #$03 + ((_QR_TOTAL_MSG_LEN & $1f) << 3)     ; 5/9 len bits
     .byte   (QR_MODE << 4) + (_QR_TOTAL_MSG_LEN >> 5)   ; 4/9 len bits
+; four initialized variables:
+    .byte   0       ; qrInputIdx (only even or odd needed, URL has even length)
+  IF QR_LEVEL = QR_LVL_L
+    .byte   $15     ; qrMsgIdx
+  ENDIF
+  IF QR_LEVEL = QR_LVL_M
+    .byte   $0f     ; qrMsgIdx
+  ENDIF
+    .byte   $29     ; qrNewByte
+    .byte   0       ; qrCrc8
 _QR_MSG_INIT_LEN    = . - QrMsgInit
 _QR_URL_LEN         = 16
 
