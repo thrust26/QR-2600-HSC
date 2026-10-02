@@ -281,13 +281,12 @@ TIM_DC_S
 .row    = qrTmpVars+0
 .column = qrTmpVars+1       ; current column - 1
 .y      = qrTmpVars+2       ; current column - 0/1
-.iByte  = qrTmpVars+3       ; ZP-RAM!
+.iByte  = qrTmpVars+3        ; ZP-RAM!
 .iBit   = qrTmpVars+4       ; ZP-RAM!
 
 ; int i = 0;  // Bit index into the data
 ; Note: 2600 code has data in reversed order
-    lda     #$ff
-    sta     .iBit           ; reset bit index
+    stx     .iBit           ; reset bit index (X = -1 from _RS_REMAINDER)
     lda     #QR_TOTAL-1
     sta     .iByte
 ; // Do the funny zigzag scan
@@ -958,7 +957,6 @@ _qrDrawCode
     sta     WSYNC
 ;---------------------------------------
     bne     .waitBtm
-; (was 733 now 735)
 
     QR_ECHO "  QR Code PF kernel:", [. - _qrDrawCode]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrDrawCode

@@ -338,7 +338,7 @@ _QR_TOTAL SET _QR_TOTAL + . - _qrMessageCode
 ;===============================================================================
 
     QR_ECHO "  --------------------------------------------"
-    QR_ECHO "  QR Code total:", [_QR_TOTAL]d, "bytes ROM,", [_QR_RAM]d, "bytes RAM"
+    QR_ECHO "  QR Code total:", [_QR_TOTAL]d, "bytes ROM,", [_QR_RAM]d, "bytes RAM (+ 6 bytes Stack)"
     QR_ECHO ""
     QR_ECHO "  QR Code Version", [QR_VERSION]d, ", Level", [QR_LEVEL]d, ", Degree", [QR_DEGREE]d, ", Mode", [QR_MODE]d, "(Alphanumeric) -> Capacity", [QR_CAPACITY_BITS]d, "bits"
     QR_ECHO "    -> Message Space:", [QR_MAX_MSG]d, "bytes /", [QR_MAX_MSG*2]d, "chars (", [QR_MSG_LEN]d, "/", [QR_MSG_LEN*2]d, "used )"
