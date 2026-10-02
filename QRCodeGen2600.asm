@@ -167,8 +167,8 @@ _QR_RAM             = . - qrRamStart
   ENDIF
 
 ; drawing variables (named for sprite display):
-grp0LLst    = qrCodeLst + QR_SIZE * 0
-firstMsl    = qrCodeLst + QR_SIZE * 1
+firstMsl    = qrCodeLst
+grp0LLst    = qrCodeLst + NUM_FIRST + QR_SIZE * 0
 grp1Lst     = qrCodeLst + NUM_FIRST + QR_SIZE * 1
 grp0RLst    = qrCodeLst + NUM_FIRST + QR_SIZE * 2   ; note: this could be an extra RAM area
 ;- - - - - - - - - - - - - - - - - - - -
@@ -1042,10 +1042,13 @@ _QR_MASK_IDX SET _QR_MASK_IDX ^ 1
 ;---------------------------------------------------------------
   MAC _QR_FUNC_GFX
 ;---------------------------------------------------------------
-_QR_MASK_IDX SET 0
+_QR_MASK_IDX SET 1
 
 _QrFuncData
 ; data for QR code version 2, level 0 or 1, mask 0
+;FirstFunc
+;_QR_MASK_IDX SET _QR_MASK_IDX ^ 1
+    _QR_AM  %11111111, %00000000
 ;GRP0LFunc
     _QR_AM  %00000000, %11111100 | (({1} >> 7) & %1) ; constant, bit 0 of 2nd format copy, level
     _QR_AM  %00000000, %00000100 | (({1} >> 6) & %1) ; constant, bit 1 of 2nd format copy, level
@@ -1072,10 +1075,7 @@ _QrFuncData
     _QR_AM  %00000000, %01110100 | (({2} >> 3) & %1) ; constant, bit 12 of 1st format copy, ECC ; 22
     _QR_AM  %00000000, %00000100 | (({2} >> 2) & %1) ; constant, bit 13 of 1st format copy, ECC
     _QR_AM  %00000000, %11111100 | (({2} >> 1) & %1) ; constant, bit 14 of 1st format copy, ECC ; 24
-;FirstFunc
-;_QR_MASK_IDX SET _QR_MASK_IDX ^ 1
-    _QR_AM  %11111111, %00000000
-;_QR_MASK_IDX SET _QR_MASK_IDX ^ 1
+_QR_MASK_IDX SET _QR_MASK_IDX ^ 1
 ;GRP1Func
     _QR_AM  %11111111, %00000000    ;  0
     _QR_AM  %11111111, %00000000
