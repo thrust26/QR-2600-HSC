@@ -36,8 +36,7 @@ BASE_ADR        = $f000
 
 NTSC_TIM        = 1         ; 0 for PAL-50
 
-;PLUSROM_ID      = 255       ; fake ID
-PLUSROM_ID      = 57
+PLUSROM_ID      = 255       ; fake ID, replace with your game's ID
 SCORE_BYTES     = 3         ; example number
 
 
@@ -51,13 +50,13 @@ QR_FORE_COL     = $00   ; black
 ; Usually smartphones are pretty good with low contrasts, but CRT displays may
 ; make problems.
 
-QR_SPRITE_GFX   = 0 ; (-33 bytes) display playfield(0) or sprite graphics(1)
+QR_SPRITE_GFX   = 1 ; (-33 bytes) display playfield(0) or sprite graphics(1)
 ; Sprite graphics are small, but sufficient. And allow to display your own
 ; graphics above and below.
 ; Note: Step AWAY from the display if your QR code reader has problems.
 
 ; define message payload size [bytes]:
-QR_MSG_LEN      = 1 + SCORE_BYTES + 1 + 1;+4;+4; PlusROM game ID, 3 x score, stage, variation
+QR_MSG_LEN      = 1 + 1 + SCORE_BYTES + 1; Example: PlusROM game ID, variation, 3 x score, stage
 ; Note: An optional, short user id is planned. This will be mapped to an
 ; existing, long id. So that no further input is quired on the website.
 ; The user id would be entered inside the game then. There it could be stored
@@ -67,7 +66,7 @@ QR_MSG_LEN      = 1 + SCORE_BYTES + 1 + 1;+4;+4; PlusROM game ID, 3 x score, sta
 ; Enable this if your payload exceeds the maximum message size. This will weaken
 ; error correction but provide space for 4 extra chars.
 
-QR_PADDING      = 1         ; add padding bytes to fill any space left
+;QR_PADDING      = 1         ; add padding bytes to fill any space left
 ; Usually QR readers simply ignore the padding bytes. If you want to be 100%
 ; correct, you can enable this line. This costs 29 extra bytes ROM.
 
@@ -141,15 +140,15 @@ Start SUBROUTINE
     txs
 
 ; define demo "game results":
-    lda     #$15
+    lda     #$03
     sta     variation
-    lda     #$F7
+    lda     #$00
     sta     scoreHi
-    lda     #$aa
+    lda     #$12
     sta     scoreMid
-    lda     #$24
+    lda     #$35
     sta     scoreLo
-    lda     #$DE
+    lda     #$05
     sta     stage
 
     lda     #2
@@ -287,29 +286,6 @@ _qrMessageCode
 ; add stage:
     lda     stage
     jsr     QrAddMsg
-; H.FIRMAPLUS.DE/Q3915F7AA24DE5C
-
-; test data:
-
-;; H.FIRMAPLUS.DE/Q3915F7AA24DE6A3F4158BA
-;    lda     #$6a
-;    jsr     QrAddMsg
-;    lda     #$3F
-;    jsr     QrAddMsg
-;    lda     #$41
-;    jsr     QrAddMsg
-;    lda     #$58
-;    jsr     QrAddMsg
-
-;; H.FIRMAPLUS.DE/Q3915F7AA24DE6A3F4158FD6CE57FBE
-;    lda     #$FD
-;    jsr     QrAddMsg
-;    lda     #$6C
-;    jsr     QrAddMsg
-;    lda     #$E5
-;    jsr     QrAddMsg
-;    lda     #$7F
-;    jsr     QrAddMsg
 
     QR_ECHO "  QR Code message code #1:", [. - _qrMessageCode]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrMessageCode

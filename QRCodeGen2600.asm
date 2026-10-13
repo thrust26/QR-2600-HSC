@@ -1,4 +1,5 @@
 ; *** HSC QR code generator ***
+; Version 1.0
 ; (C)2021/2026 Thomas Jentzsch
 ; specialized for creating URLs for the PlusROM HSC
 
