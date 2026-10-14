@@ -1,5 +1,5 @@
 ; *** HSC QR code generator ***
-; Version 1.1
+; Version 1.11
 ; (C)2021/2026 Thomas Jentzsch
 ; specialized for creating URLs for the PlusROM HSC
 
@@ -21,6 +21,16 @@
 ;===============================================================================
 ; U S E R - D E F I N E D   Q R   C O D E   C O N S T A N T S
 ;===============================================================================
+
+  IFNCONST QR_BACK_COL
+QR_BACK_COL     = $0e       ; white
+  ENDIF
+  IFNCONST QR_FORE_COL
+QR_FORE_COL     = $00       ; black
+  ENDIF
+  IFNCONST QR_SPRITE_GFX
+QR_SPRITE_GFX   = 1         ; sprites
+  ENDIF
 
 ; QR code error correction levels:
 QR_LVL_L        = 0
