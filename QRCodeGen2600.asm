@@ -1,5 +1,5 @@
 ; *** HSC QR code generator ***
-; Version 1.0
+; Version 1.1
 ; (C)2021/2026 Thomas Jentzsch
 ; specialized for creating URLs for the PlusROM HSC
 
@@ -66,6 +66,7 @@ QR_POLY         = $11d  ; GF(2^8) is based on 9 bit polynomial
                         ; x^8 + x^4 + x^3 + x^2 + 1 = 0x11d
 
 _QR_MAX_MSG     = (QR_MAX_DATA * 8 - 13) * 2 / 11
+_QR_URL_LEN     = 16
 QR_MAX_MSG      = (_QR_MAX_MSG - (_QR_URL_LEN + 2)) / 2  ; URL + (CRC8 * 2)
 QR_TOTAL        = QR_MAX_DATA + QR_DEGREE ; e.g. 44
 
@@ -84,25 +85,25 @@ _QR_TOTAL SET 0         ; ROM bytes used counter
 ; a major problem)
 
   IFNCONST qrRamStart
-    QR_ECHO ""
-    QR_ECHO "!!! ERROR: qrRamStart not defined !!!"
+    ECHO    ""
+    ECHO    "!!! ERROR: qrRamStart not defined !!!"
     ERR
   ENDIF
   IFNCONST qrRamEnd
-    QR_ECHO ""
-    QR_ECHO "!!! ERROR: qrRamEnd not defined !!!"
+    ECHO    ""
+    ECHO    "!!! ERROR: qrRamEnd not defined !!!"
     ERR
   ENDIF
 
   IFNCONST QR_MSG_LEN
-    QR_ECHO  ""
-    QR_ECHO "!!! ERROR: QR code message length not defined !!!"
+    ECHO    ""
+    ECHO    "!!! ERROR: QR code message length not defined !!!"
     ERR
   ENDIF
 
   IF QR_MAX_MSG < QR_MSG_LEN
-    QR_ECHO  ""
-    QR_ECHO "!!! ERROR: QR code message length (", [QR_MSG_LEN]d, ") > maximum length (", [QR_MAX_MSG]d, ") !!!"
+    ECHO    ""
+    ECHO    "!!! ERROR: QR code message length (", [QR_MSG_LEN]d, ") > maximum length (", [QR_MAX_MSG]d, ") !!!"
     ERR
   ENDIF
 
@@ -160,9 +161,9 @@ _QR_CODE_LST_SIZE   = . - qrCodeLst
 _QR_RAM             = . - qrRamStart
 
   IF . > qrRamEnd
-    QR_ECHO ""
-    QR_ECHO "!!! ERROR: QR code RAM data overwrites game RAM data! (", qrRamEnd, "<", ., ") !!!"
-    QR_ECHO "   ", [. - qrRamStart]d, "bytes ZP RAM required!"
+    ECHO    ""
+    ECHO    "!!! ERROR: QR code RAM data overwrites game RAM data! (", qrRamEnd, "<", ., ") !!!"
+    ECHO    "   ", [. - qrRamStart]d, "bytes ZP RAM required!"
     ERR
   ENDIF
 
@@ -770,7 +771,6 @@ _QR_TOTAL_MSG_LEN   = (QR_MSG_LEN * 2) + _QR_URL_LEN + 2   ; include CRC
     .byte   $29     ; qrNewByte (%..X01001)
     .byte   0       ; qrCrc8
 _QR_MSG_INIT_LEN    = . - QrMsgInit
-_QR_URL_LEN         = 16
 
     QR_ECHO "  QR Code encoding data:", [. - _qrCodeData]d, "bytes"
 _QR_TOTAL SET _QR_TOTAL + . - _qrCodeData
