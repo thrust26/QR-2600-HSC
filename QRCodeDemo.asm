@@ -44,23 +44,23 @@ SCORE_BYTES     = 3         ; example number
 ; Q R   A S S E M B L E R - S W I T C H E S
 ;===============================================================================
 
-QR_BACK_COL     = $0e   ; white
-QR_FORE_COL     = $00   ; black
-; Note: Other color combinations work too, as long as the contrast is high enough
-; Usually smartphones are pretty good with low contrasts, but CRT displays may
-; make problems.
-
-QR_SPRITE_GFX   = 1 ; (-33 bytes) display playfield(0) or sprite graphics(1)
-; Sprite graphics are small, but sufficient. And allow to display your own
-; graphics above and below.
-; Note: Step AWAY from the display if your QR code reader has problems.
-
 ; define message payload size [bytes]:
 QR_MSG_LEN      = 1 + 1 + SCORE_BYTES + 1; Example: PlusROM game ID, variation, 3 x score, stage
 ; Note: An optional, short user id is planned. This will be mapped to an
 ; existing, long id. So that no further input is quired on the website.
 ; The user id would be entered inside the game then. There it could be stored
 ; and reused using e.g. the SaveKey.
+
+;QR_BACK_COL     = $0e   ; white
+;QR_FORE_COL     = $00   ; black
+; Note: Other color combinations work too, as long as the contrast is high enough
+; Usually smartphones are pretty good with low contrasts, but CRT displays may
+; make problems.
+
+;QR_SPRITE_GFX   = 0 ; (-33 bytes) display playfield(0) or sprite graphics(1)
+; Sprite graphics are small, but sufficient. And allow to display your own
+; graphics above and below.
+; Note: Step AWAY from the display if your QR code reader has problems.
 
 ;QR_LEVEL        = QR_LVL_L ; error correction level (default M)
 ; Enable this if your payload exceeds the maximum message size. This will weaken
@@ -108,7 +108,7 @@ qrRamEnd                    ; end of QR code RAM
 ;===============================================================================
 
   LIST OFF
-    include QRCodeGen2600.asm ; contains all QR code generation code
+    include "QRCodeGen2600.asm" ; contains all QR code generation code
   LIST ON
 
 
@@ -121,23 +121,24 @@ qrRamEnd                    ; end of QR code RAM
 ;---------------------------------------------------------------
 Start SUBROUTINE
 ;---------------------------------------------------------------
-;    lda     #0
-;    tax
-    cld                     ; clear BCD math bit
-;.clearLoop
-;    dex
-;    txs
-;    pha
-;    bne     .clearLoop
-
-; clear TIA only, keep ZP-RAM random for testing:
-    ldx     #$7f
     lda     #0
-.loopClear
-    sta     $00,x
+    tax
+    cld                     ; clear BCD math bit
+.clearLoop
     dex
-    bpl     .loopClear
     txs
+    pha
+    bne     .clearLoop
+
+;; clear TIA only, keep ZP-RAM random for testing:
+;    cld
+;    ldx     #$7f
+;    lda     #0
+;.loopClear
+;    sta     $00,x
+;    dex
+;    bpl     .loopClear
+;    txs
 
 ; define demo "game results":
     lda     #$03
@@ -166,7 +167,7 @@ DisplayQrCode SUBROUTINE
 fireButton  = tmpVars
 resync      = tmpVars+1
 
-    lda     #2-1            ; debounce fire button and init resync
+    lda     #NUM_FIRE_STATES-1; debounce fire button and init resync
     sta     fireButton      ; mark as pressed before, 2 state changes required
     sta     resync          ; it takes ~8 frames to generate the QR code, so the
                             ; next 6 frames are displayed blank for resync
@@ -236,10 +237,14 @@ _EXTRA_LINES    = 4         ; PF display needs some extra lines for a nice gap
     jmp     .mainLoop
 
 .exitDisplay
+; here e.g. variables or TIA registers can be restored.
+;    lda     #$00
+;    sta     COLUBK
     rts                     ; we are done
 
 FireStates
     .byte   $80, $00
+NUM_FIRE_STATES = . - FireStates
 ; /DisplayQrCode
 
 ;---------------------------------------------------------------
