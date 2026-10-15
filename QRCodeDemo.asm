@@ -273,7 +273,8 @@ _qrMessageCode
 .scoreIdx   = tmpVars
 
 ; Note: Enter the values in the same order as if you were sending them directly to the HSC
-; add PlusROM game ID:
+;   (except for the ID, which has to come first here)
+; add PlusROM game ID first:
     lda     #PLUSROM_ID
     jsr     QrAddMsg
 ; add game variation:
